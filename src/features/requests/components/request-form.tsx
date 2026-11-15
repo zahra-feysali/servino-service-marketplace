@@ -19,7 +19,9 @@ import { FILE_FIELD_PREFIX, GENERAL_ATTACHMENTS_FIELD, requestBaseSchema } from 
 import { DynamicField } from "./dynamic-field";
 
 type Province = { id: string; name: string; cities: { id: string; name: string }[] };
+type SavedAddress = { id: string; title: string; cityId: string; line: string; isDefault: boolean };
 type FormValues = {
+  addressId: string;
   cityId: string;
   addressText: string;
   preferredDate: string;
@@ -29,7 +31,17 @@ type FormValues = {
 
 const GENERAL_KEY = "__general";
 
-export function RequestForm({ serviceId, fields, provinces }: { serviceId: string; fields: FieldDefinition[]; provinces: Province[] }) {
+export function RequestForm({
+  serviceId,
+  fields,
+  provinces,
+  addresses = [],
+}: {
+  serviceId: string;
+  fields: FieldDefinition[];
+  provinces: Province[];
+  addresses?: SavedAddress[];
+}) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -43,7 +55,7 @@ export function RequestForm({ serviceId, fields, provinces }: { serviceId: strin
   );
   const form = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
-    defaultValues: { cityId: "", addressText: "", preferredDate: "", description: "", answers: defaultAnswers(fields) },
+    defaultValues: { addressId: "", cityId: "", addressText: "", preferredDate: "", description: "", answers: defaultAnswers(fields) },
   });
   const { errors } = form.formState;
   const answerErrors = (errors.answers ?? {}) as Record<string, { message?: string } | undefined>;
@@ -75,7 +87,7 @@ export function RequestForm({ serviceId, fields, provinces }: { serviceId: strin
     body.set(
       "data",
       JSON.stringify({
-        base: { serviceId, cityId: raw.cityId, addressText: raw.addressText, description: raw.description, preferredDate: raw.preferredDate },
+        base: { serviceId, addressId: raw.addressId, cityId: raw.cityId, addressText: raw.addressText, description: raw.description, preferredDate: raw.preferredDate },
         answers: raw.answers,
       }),
     );
@@ -184,12 +196,42 @@ export function RequestForm({ serviceId, fields, provinces }: { serviceId: strin
         </CardHeader>
         <CardContent>
           <FieldGroup>
+            {addresses.length > 0 ? (
+              <Field>
+                <FieldLabel htmlFor="savedAddress">انتخاب از نشانی‌های ذخیره‌شده</FieldLabel>
+                <NativeSelect
+                  id="savedAddress"
+                  className="w-full"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const a = addresses.find((x) => x.id === e.target.value);
+                    form.setValue("addressId", a?.id ?? "");
+                    if (a) {
+                      form.setValue("cityId", a.cityId, { shouldValidate: true });
+                      form.setValue("addressText", a.line, { shouldValidate: true });
+                    }
+                  }}
+                >
+                  <NativeSelectOption value="">— نشانی جدید —</NativeSelectOption>
+                  {addresses.map((a) => (
+                    <NativeSelectOption key={a.id} value={a.id}>
+                      {a.title}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </Field>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field data-invalid={!!errors.cityId}>
                 <FieldLabel htmlFor="cityId">
                   شهر <span className="text-destructive">*</span>
                 </FieldLabel>
-                <NativeSelect id="cityId" className="w-full" aria-invalid={!!errors.cityId} {...form.register("cityId")}>
+                <NativeSelect
+                  id="cityId"
+                  className="w-full"
+                  aria-invalid={!!errors.cityId}
+                  {...form.register("cityId", { onChange: () => form.setValue("addressId", "") })}
+                >
                   <NativeSelectOption value="">انتخاب شهر…</NativeSelectOption>
                   {provinces.map((p) => (
                     <NativeSelectOptGroup key={p.id} label={p.name}>

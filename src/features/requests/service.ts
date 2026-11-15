@@ -109,6 +109,11 @@ export async function submitServiceRequest(
   });
   if (!city) throw new AppError("شهر انتخاب‌شده معتبر نیست.", "VALIDATION", { cityId: ["شهر انتخاب‌شده معتبر نیست."] });
 
+  if (base.data.addressId) {
+    const owned = await prisma.address.count({ where: { id: base.data.addressId, userId: customerId, cityId: city.id } });
+    if (!owned) throw new AppError("نشانی انتخاب‌شده معتبر نیست.", "VALIDATION", { addressId: ["نشانی انتخاب‌شده معتبر نیست."] });
+  }
+
   const answers = buildAnswersSchema(service.fields).safeParse(payload.answers ?? {});
   if (!answers.success) {
     throw new AppError("لطفاً خطاهای فرم را برطرف کنید.", "VALIDATION", z.flattenError(answers.error).fieldErrors);
@@ -134,6 +139,7 @@ export async function submitServiceRequest(
             customerId,
             serviceId: service.id,
             cityId: city.id,
+            addressId: base.data.addressId ?? null,
             addressText: base.data.addressText,
             description: base.data.description ?? null,
             preferredDate: base.data.preferredDate ? new Date(`${base.data.preferredDate}T00:00:00Z`) : null,

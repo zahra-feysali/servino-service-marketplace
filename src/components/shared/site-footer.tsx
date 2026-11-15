@@ -1,8 +1,13 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Logo } from "@/components/shared/logo";
+import { DEFAULT_SETTINGS, getSiteSettings } from "@/features/admin/service";
 import { toPersianDigits } from "@/lib/utils";
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  await connection(); // settings are read at request time, never at build time
+  // Footer must render even if the database is unreachable.
+  const settings = await getSiteSettings().catch(() => DEFAULT_SETTINGS);
   const year = new Intl.DateTimeFormat("fa-IR-u-ca-persian", { year: "numeric" }).format(new Date());
   return (
     <footer className="mt-auto border-t bg-muted/40">
@@ -40,10 +45,18 @@ export function SiteFooter() {
             در این نسخه تمام پرداخت‌ها به‌صورت <strong>شبیه‌سازی‌شده</strong> انجام می‌شوند و هیچ تراکنش بانکی واقعی صورت
             نمی‌گیرد.
           </p>
+          {settings["site.supportPhone"] || settings["site.supportEmail"] ? (
+            <p className="text-sm text-muted-foreground">
+              پشتیبانی:{" "}
+              {settings["site.supportPhone"] ? <span className="ltr-nums">{settings["site.supportPhone"]}</span> : null}
+              {settings["site.supportPhone"] && settings["site.supportEmail"] ? " · " : null}
+              {settings["site.supportEmail"] ? <span className="ltr-nums">{settings["site.supportEmail"]}</span> : null}
+            </p>
+          ) : null}
         </div>
       </div>
       <div className="border-t py-4 text-center text-xs text-muted-foreground">
-        © {year} سروینو — نسخه {toPersianDigits("0.1")}
+        © {year} {settings["site.name"]} — نسخه {toPersianDigits("0.1")}
       </div>
     </footer>
   );

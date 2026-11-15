@@ -116,7 +116,8 @@ enum PaymentPurpose {
 }
 
 enum PaymentGateway {
-  SIMULATED
+  SIMULATED // simulated bank gateway (no real money)
+  WALLET // paid from the user's in-app wallet balance
 }
 
 enum WalletTransactionType {

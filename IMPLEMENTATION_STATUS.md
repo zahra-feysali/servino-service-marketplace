@@ -1,88 +1,85 @@
 # Implementation Status
 
-_Last updated: 2026-11-15 — end of **Phase 2 (Core marketplace logic)**._
+_Last updated: 2026-11-15 — end of **Phase 3 (Dashboards & business features)**._
 
 ## Phases
 | Phase | Status |
 |---|---|
 | 1 — Project foundation | **Complete** (DB-dependent verification BLOCKED) |
 | 2 — Core marketplace logic | **Complete** (DB-dependent verification BLOCKED) |
-| 3 — Dashboards & business features | Not started — waiting for authorization |
-| 4 — UI/UX, testing, finalization | Not started |
+| 3 — Dashboards & business features | **Complete** (DB-dependent verification BLOCKED) |
+| 4 — UI/UX, testing, finalization | Not started — waiting for authorization |
 
-## Phase 2 — implemented
-- **Category & service management (admin):** `/dashboard/admin/catalog` — create/edit/delete main categories and
-  subcategories (2 levels, parent validation), create/edit/activate/delete services. Deleting is refused when items are
-  in use (deactivate instead). Unique slug handling.
-- **Dynamic form builder (admin):** `/dashboard/admin/catalog/services/[id]` — add/edit/delete fields, all 9 types
-  (TEXT, TEXTAREA, NUMBER, SELECT, RADIO, CHECKBOX, DATE, BOOLEAN, FILE), label, technical name (unique per service),
-  required/optional, enable/disable, options (value/label), default value (type-checked), help text, placeholder,
-  ordering (up/down with stable renumbering), per-type config (min/max, max length, file types/size/count).
-  Every change bumps `Service.formVersion`.
-- **History-safe storage:** requests store validated `answers` (JSON) + an immutable `formSnapshot` of the active
-  fields + `formVersion`; request pages render from the snapshot, so later form edits never corrupt old requests.
-- **Customer request submission:** `/request/[slug]` dynamic form generated from the service's active fields; the
-  same Zod builder (`buildAnswersSchema`) validates on the client and on the server; city, address, preferred date,
-  description; unknown answer keys stripped. Submitted via `POST /api/requests` (multipart Route Handler).
-- **Attachments:** per FILE field and general attachments; declared type/size/count checks + real type detection by
-  magic bytes (JPEG/PNG/WebP/PDF), ≤ 5 MB each; stored privately under `UPLOAD_DIR` with generated keys (path-traversal
-  safe); files removed if the DB transaction fails; served only by `GET /api/attachments/[id]` to the owner, matched
-  providers and admins (404 otherwise).
-- **Provider matching:** in the submission transaction, providers are matched only if APPROVED, ACTIVE, offering the
-  service, serving the city and holding an ACTIVE, in-window subscription with remaining request quota. Quota is
-  consumed with a single conditional SQL UPDATE (race-safe, fail-closed on malformed snapshots). Matches are recorded
-  in `RequestMatch`; providers get a `NEW_REQUEST` notification.
-- **Provider access:** `/dashboard/provider/requests` inbox (new/viewed, open/all) and request detail — only for matched
-  providers; customer address/phone hidden until the provider is selected.
-- **Offer submission:** price, estimated duration (hour/day), description, notes. Server enforces approval, match,
-  OPEN + not expired, one offer per provider (DB unique), and offer quota (atomic). Providers can withdraw a pending
-  offer (`/dashboard/provider/offers`).
-- **Offer comparison & selection (customer):** `/dashboard/customer/requests/[id]` — offer cards with provider rating,
-  completed orders, experience; sort by price/time/rating; cheapest/fastest/best-rated highlights. **Atomic selection**
-  in one `$transaction`: row lock on the request (`SELECT … FOR UPDATE`), ownership + state + offer checks, guarded
-  PENDING→ACCEPTED update, other pending offers REJECTED, request → PROVIDER_SELECTED, order created with the price
-  copied from the stored offer, request + order status history, notifications to customer, selected and rejected
-  providers. `Order.requestId`/`offerId` UNIQUE as a DB backstop against double acceptance.
-- **Request cancellation:** customer can cancel an OPEN request with a reason (pending offers rejected, providers notified).
-- **Order status management:** pure state machine (`features/orders/state-machine.ts`) with per-transition actors and
-  mandatory reasons for cancel/dispute; service locks the order row, checks ownership by role and the current status,
-  sets timestamps, writes history, updates the request (COMPLETED/CANCELLED) and provider counters, notifies the other
-  party. UI for customer and provider order lists/details with role-specific action buttons and timeline.
-- **Reviews & ratings:** one review per completed order by its customer (DB unique + rules), 1–5 stars + comment,
-  provider `ratingAverage`/`ratingCount` recomputed from PUBLISHED reviews in the same transaction;
-  `/dashboard/customer/reviews`.
-- **Notifications:** stored in DB with read/unread; created inside the business transactions (new request, new offer,
-  offer accepted/rejected, order created, status changes, review received); notifications page for each role,
-  mark one/all as read, unread badge in sidebar and header bell.
-- **Navigation:** sidebars now list all implemented sections; service pages link to the request form.
+## Phase 3 — implemented
+**Schema:** `PaymentGateway` gained `WALLET` (migration `20261115100000_payment_gateway_wallet`, generated offline with
+`prisma migrate diff --from-schema <phase-2 schema> --to-schema`; not yet applied). No other schema changes were needed.
 
-## Phase 1 — implemented (summary)
-Next.js 16 / TS strict / Tailwind 4 / shadcn (RTL) / Vazirmatn setup; full Prisma schema for all spec models and the
-offline-generated init migration; Auth.js credentials (bcrypt, JWT); customer/provider registration; server-side RBAC
-guards; public, auth and dashboard layouts; account settings; idempotent seed; docs.
+**Customer dashboard (complete per spec §8):** overview, requests, request details, received offers, comparison,
+selection, orders, order details, **address management** (CRUD, default address, used to prefill the request form with
+server-side ownership + city check), submitted reviews, notifications, account settings, **support tickets**.
 
-## Checks (Phase 2)
+**Provider dashboard (complete per spec §9):** overview (verification state, subscription, wallet), relevant requests
+(+ **report problematic request**), request details, submit offer, submitted offers, received orders and status
+management, **professional profile**, **skills**, **portfolio** (image upload), **certificates & verification documents**
+(upload, private), **offered services**, **service areas**, **verification checklist + submit for verification**,
+**subscription** (plans, quotas used/remaining, history, purchase via simulated gateway or wallet, renewal stacking),
+**wallet & payments** (simulated top-up, transactions, payment history), **earnings** (completed orders, 6-month chart),
+**customer reviews**, notifications, settings, **support tickets**.
+
+**Admin dashboard (complete per spec §10):**
+- Users: customers & providers lists (search, filters), user detail (edit name/phone/email; activate / deactivate /
+  suspend — not self, not admins), provider verification review (approve / reject with reason / revoke approval,
+  per-document approve/reject, private document viewing).
+- Services: categories, subcategories, services, dynamic forms (Phase 2).
+- Requests & orders: requests list (status, flagged, code search) + detail (answers from snapshot, matched providers,
+  offers, history, flag/unflag, cancel open request), offers list, orders list + detail with admin transitions
+  (cancel, dispute resolution).
+- Subscriptions: plan CRUD/activate/deactivate/delete-if-unused; user subscriptions list with renew (extend N days,
+  re-activates expired), cancel (with reason) and "apply expiry" sweep.
+- Payments: payment list (status filter, all marked simulated) and wallet transaction history.
+- Featured providers (create/edit/delete, placement HOME/CATEGORY/SEARCH, dates, cost, order), review moderation
+  (hide/publish with rating recompute), support tickets (list, reply, close/reopen), broadcast notifications
+  (all/customers/providers), general site settings (name, support phone/email, request offer window — used by request
+  submission and the footer), reports & statistics with Recharts (requests/day, simulated revenue/day, orders by status,
+  top services, KPIs).
+
+**Subscriptions:** plans are DB rows (never hard-coded); `Plan` and `Subscription` separate; subscription stores user,
+plan, start/end, status (PENDING/ACTIVE/EXPIRED/CANCELLED) and a frozen `planSnapshot`; quotas enforced on the backend
+(SQL, Phase 2) — this phase adds purchase/activation, stacking renewals, expiry sweep and admin management.
+
+**Simulated payments:** Payment / Wallet / WalletTransaction used; success and failure both persisted; history visible to
+the user and admin; subscription status updated only by the server inside the payment transaction (row-locked, settle
+once); simulated payments labelled everywhere (gateway page banner, "شبیه‌سازی" badges, `SIM-` tracking codes).
+
+**Featured providers:** independent of plans; provider, placement, active flag, start/end, cost, order; backend ordering
+(`orderProviders`) used by the home page, service pages and `/providers`.
+
+**Public pages added:** `/providers` (discovery, filters by service & city), `/providers/[id]` (approved providers only:
+bio, skills, services, areas, portfolio, published reviews with masked names), featured sections on home and service pages.
+
+**Support tickets:** title, category, optional linked order (ownership checked), messages/replies, statuses
+(OPEN / ANSWERED / CUSTOMER_REPLY / CLOSED), created/updated dates, admin management; notifications on staff replies.
+
+## Checks (Phase 3)
 | Check | Result | Notes |
 |---|---|---|
 | `npm run lint` | **PASSED** | 0 errors, 0 warnings |
 | `npm run typecheck` | **PASSED** | |
-| `npx prisma validate` / `generate` | **PASSED** | no schema changes were needed in Phase 2 |
-| Unit tests (`npm test`) | **PASSED** | 106 tests in 9 files — dynamic form schema builder & admin field validation, file rules, matching rules & quotas, order state machine, offer selection rules, offer comparison, reviews/rating, magic-byte detection, private storage & path traversal, plus Phase 1 auth/RBAC tests |
-| Integration: `tests/integration/marketplace.int.test.ts` (10 tests) | **BLOCKED** | full workflow incl. matching, quotas, duplicate offers, **concurrent selection (exactly one order)**, transitions/ownership, single review & rating, cancellation — needs PostgreSQL; auto-skipped |
-| Integration: `tests/integration/auth.int.test.ts` (5 tests) | **BLOCKED** | needs PostgreSQL |
-| `npm run build` | **PASSED** | 32 routes, no warnings |
-| Production smoke test (`next start`, no DB) | **PASSED** (partial) | `/request/<slug>` and new dashboard routes redirect anonymous users to `/login`; `GET /api/attachments/<id>` → 401 anonymous; `POST /api/requests` → 401 anonymous, 403 cross-origin |
-| `prisma migrate dev` / `db seed` | **BLOCKED** | PostgreSQL not installed |
-| Manual end-to-end UI walkthrough with data | **BLOCKED** | needs PostgreSQL + seed |
+| `npx prisma validate` / `generate` | **PASSED** | |
+| Migration SQL generation (`migrate diff`) | **PASSED** | `ALTER TYPE "PaymentGateway" ADD VALUE 'WALLET';` — not applied |
+| Unit tests (`npm test`) | **PASSED** | **126 tests** in 10 files (20 new: subscription window/expiry/plan schema, payment settle rules, wallet math, top-up validation, verification rules, featured ordering, ticket status, address schema, report buckets, name masking) |
+| Integration: `tests/integration/business.int.test.ts` (8 tests) | **BLOCKED** | gateway purchase success/failure & settle-once, wallet top-up + wallet purchase + stacking, expiry, verification workflow, featured ordering, ticket ownership/status, review hide → rating recompute |
+| Integration: marketplace (10) + auth (5) | **BLOCKED** | |
+| `npm run build` | **PASSED** | 51 pages + route handlers, no warnings (fixed a build-time DB query in the footer) |
+| Production smoke test (no DB) | **PASSED** (partial) | all new dashboard pages and `/payment/<id>` redirect anonymous users to login; document files 401 anonymous; upload endpoint 401 anonymous / 403 cross-origin |
+| `prisma migrate dev` / `db seed` / manual walkthrough | **BLOCKED** | PostgreSQL not installed |
 
 ## Blocked by missing environment dependencies
-PostgreSQL is still **not installed** on the development machine. Blocked until available:
-1. `npm run db:migrate` (applies and verifies the offline-generated init migration).
-2. `npm run db:seed`.
-3. 15 integration tests (`npm test` runs them automatically once `DATABASE_URL` is reachable).
-4. Manual walkthrough: admin form builder → customer request (with files) → provider offer → selection → order → review.
-   The raw SQL in `features/matching/service.ts` (quota UPDATEs) and `lib/db-locks.ts` (row locks) has not yet been
-   executed against PostgreSQL.
+PostgreSQL is still **not installed**. Blocked until available:
+1. Applying both migrations (`npm run db:migrate`) and seeding (`npm run db:seed`).
+2. 23 integration tests (run automatically by `npm test` once `DATABASE_URL` is reachable).
+3. Manual end-to-end walkthrough of all dashboards; raw SQL (`FOR UPDATE` locks, quota UPDATEs, wallet lock) has not
+   been executed against PostgreSQL yet.
 
 ## Required manual setup
 1. Install PostgreSQL 16+, create database/user (README → Database setup).
@@ -90,27 +87,27 @@ PostgreSQL is still **not installed** on the development machine. Blocked until 
 3. `npm run db:migrate && npm run db:seed && npm test`.
 
 ## Known issues / limitations
-- Request expiry is evaluated lazily (OPEN past `expiresAt` is displayed as EXPIRED and rejects offers/selection);
-  there is no background job that writes `EXPIRED` to the database.
-- Withdrawn offers do not refund the consumed offer quota (documented behaviour).
-- Quotas apply to the whole subscription period (no monthly reset inside longer plans).
-- Admin views of requests/offers/orders, admin dispute resolution UI, review moderation UI, provider profile
-  completion (services, areas, documents, submit for verification), subscriptions/payments UIs, address book and
-  support tickets belong to **Phase 3**. Service functions already support admin order transitions and rating
-  recomputation for later use.
-- Date inputs use the browser's Gregorian date picker; displayed dates use the Persian calendar (polish in Phase 4).
-- Customer/provider dashboards show the counterpart's phone number only inside an order (not cancelled).
+- Public pages that read the database (`/`, `/services`, `/providers`, provider profiles, portfolio images) return the
+  error state / 500 when the database is unreachable (no mock data by design).
+- Subscription expiry is applied lazily (provider pages, admin "apply expiry" button); no background scheduler.
+- Quotas apply to the whole subscription period; withdrawn offers do not refund quota.
+- Featured placements are assigned by admins (optional cost field); providers cannot buy featured placement themselves
+  (`FEATURED_PLACEMENT` payment purpose reserved).
+- Wallet balance is only funded by simulated top-ups and only spent on subscriptions; no withdrawals/refund flows.
+- Date inputs use the browser's Gregorian date picker; displayed dates use the Persian calendar (Phase 4 polish).
+- Admin lists are capped at the latest 200 rows (pagination planned for Phase 4 review).
 
 ## Important technical decisions
-- Request submission uses a **Route Handler** (`POST /api/requests`) because Server Actions are limited to 1 MB unless
-  the `experimental.serverActions.bodySizeLimit` option is enabled (experimental options are not allowed).
-- Concurrency: pessimistic row locks (`SELECT … FOR UPDATE`) on the request (offers, selection, cancellation) and the
-  order (status changes, reviews) + guarded conditional updates + DB unique constraints as backstops.
-- Quota enforcement in SQL (conditional `UPDATE … WHERE requestsReceived < (planSnapshot->>'max…')::int`), so concurrent
-  requests can never exceed a plan's quota.
-- Phase 1 decisions still apply (next-auth v4 stable, Prisma 7.10.1, TS 6.0.3, Vitest 3.2.7, no Cache Components).
+- Generic `ServerForm` (FormData + Server Actions, server-side Zod) for the many simple forms; React Hook Form + shared
+  Zod remains for complex interactive forms (dynamic request form, form builder, login/register).
+- File uploads (documents, portfolio, request attachments) use Route Handlers to avoid the 1 MB Server Action limit
+  without enabling experimental options.
+- Earnings are computed from completed orders (service fees are paid directly to providers); platform revenue comes
+  from subscription payments.
+- Phase 1–2 decisions still apply (next-auth v4 stable, Prisma 7.10.1, TS 6.0.3, Vitest 3.2.7, no Cache Components,
+  row locks + DB unique constraints for concurrency).
 
-## Next steps (Phase 3 — awaiting authorization)
-Complete customer/provider/admin dashboards (incl. provider profile, services, areas, portfolio, documents and
-verification flow; admin users/providers/requests/orders/reviews management), subscription plans & lifecycle with
-quotas, simulated payments, wallet & transactions, featured providers, support tickets, reports & charts, and tests.
+## Next steps (Phase 4 — awaiting authorization)
+Complete UI/UX polish, responsive + RTL audit of every page, review all forms/validation and user journeys, security &
+authorization review, query/performance review (pagination, indexes), fix issues, run all tests (incl. DB tests once
+PostgreSQL is available), production build, final README/documentation and final report.

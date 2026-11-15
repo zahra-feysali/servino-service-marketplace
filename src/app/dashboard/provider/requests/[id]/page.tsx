@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft, Flag, Lock } from "lucide-react";
+import { reportRequestAction } from "@/features/providers/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,21 @@ export default async function ProviderRequestDetailPage({ params }: PageProps<"/
       <PageHeader
         title={`درخواست ${toPersianDigits(request.code)} — ${request.service.name}`}
         description={`${request.city.name} · ثبت در ${formatDateTime(request.createdAt)} · ${toPersianDigits(request.offerCount)} پیشنهاد`}
-        actions={<Badge variant={REQUEST_STATUS_META[status].variant}>{REQUEST_STATUS_META[status].label}</Badge>}
+        actions={
+          <>
+            <Badge variant={REQUEST_STATUS_META[status].variant}>{REQUEST_STATUS_META[status].label}</Badge>
+            <ActionButton
+              action={reportRequestAction.bind(null, request.id)}
+              size="sm"
+              variant="ghost"
+              confirm={{ title: "گزارش درخواست مشکل‌دار", description: "این درخواست برای بررسی به مدیر ارسال می‌شود.", confirmLabel: "ارسال گزارش" }}
+              note={{ label: "دلیل گزارش", required: true, placeholder: "مثلاً: اطلاعات نادرست یا درخواست غیرمجاز" }}
+            >
+              <Flag />
+              گزارش
+            </ActionButton>
+          </>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-5">

@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ServiceIcon } from "@/components/shared/service-icon";
 import { getPublicCatalog, servicesOfCategory } from "@/features/catalog/queries";
+import { ProviderCard } from "@/features/providers/components/provider-card";
+import { listFeaturedProviders } from "@/features/providers/public-queries";
 import { formatNumber } from "@/lib/utils";
 
 const STEPS = [
@@ -17,7 +19,7 @@ const STEPS = [
 
 export default async function HomePage() {
   await connection(); // catalog is read from the database at request time
-  const catalog = await getPublicCatalog();
+  const [catalog, featured] = await Promise.all([getPublicCatalog(), listFeaturedProviders("HOME", 6)]);
 
   return (
     <>
@@ -103,6 +105,30 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
+      {featured.length > 0 ? (
+        <section className="border-t bg-muted/30">
+          <div className="mx-auto max-w-6xl space-y-6 px-4 py-14">
+            <div className="flex items-end justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-bold">متخصصان ویژه</h2>
+                <p className="text-sm text-muted-foreground">متخصصان تأییدشده و برگزیده سروینو</p>
+              </div>
+              <Button asChild variant="link" className="shrink-0">
+                <Link href="/providers">
+                  همه متخصصان
+                  <ArrowLeft />
+                </Link>
+              </Button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {featured.map((p) => (
+                <ProviderCard key={p.id} p={p} />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }

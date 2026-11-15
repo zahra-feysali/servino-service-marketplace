@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { BadgeCheck, Briefcase, Inbox, MapPin, Star, Wallet } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { expireDueSubscriptions } from "@/features/subscriptions/service";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +18,7 @@ export const metadata: Metadata = { title: "پیشخوان متخصص" };
 
 export default async function ProviderDashboardPage() {
   const user = await requireRolePage("PROVIDER");
+  await expireDueSubscriptions();
   const overview = await getProviderOverview(user.id);
 
   if (!overview) {
@@ -44,6 +48,11 @@ export default async function ProviderDashboardPage() {
           <AlertDescription>
             <p>{status.description}</p>
             {profile.rejectionReason ? <p>دلیل: {profile.rejectionReason}</p> : null}
+            {profile.verificationStatus !== "PENDING" ? (
+              <Button asChild size="sm" className="mt-2">
+                <Link href="/dashboard/provider/profile">تکمیل پروفایل و ارسال برای تأیید</Link>
+              </Button>
+            ) : null}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -74,6 +83,9 @@ export default async function ProviderDashboardPage() {
             ) : (
               <p>اشتراک فعالی ندارید. بدون اشتراک فعال، درخواست جدیدی برای شما ارسال نمی‌شود.</p>
             )}
+            <Button asChild size="sm" variant="outline" className="mt-3">
+              <Link href="/dashboard/provider/subscription">مدیریت اشتراک</Link>
+            </Button>
           </CardContent>
         </Card>
         <Card>

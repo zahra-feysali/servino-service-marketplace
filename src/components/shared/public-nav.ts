@@ -2,4 +2,5 @@
 export const PUBLIC_NAV = [
   { href: "/", label: "خانه" },
   { href: "/services", label: "خدمات" },
+  { href: "/providers", label: "متخصصان" },
 ] as const;

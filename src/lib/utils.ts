@@ -49,3 +49,10 @@ export function formatDate(value: Date | string): string {
 export function formatDateTime(value: Date | string): string {
   return dateTimeFormatter.format(new Date(value));
 }
+
+/** Public display of a person's name: first name + initial of the last name (privacy). */
+export function maskName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length < 2) return parts[0] ?? "";
+  return `${parts[0]} ${parts[parts.length - 1].slice(0, 1)}.`;
+}

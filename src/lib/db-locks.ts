@@ -8,11 +8,24 @@ import type { TxClient } from "@/lib/prisma";
 const LOCKABLE = {
   ServiceRequest: 'SELECT "id" FROM "ServiceRequest" WHERE "id" = $1::uuid FOR UPDATE',
   Order: 'SELECT "id" FROM "Order" WHERE "id" = $1::uuid FOR UPDATE',
+  Payment: 'SELECT "id" FROM "Payment" WHERE "id" = $1::uuid FOR UPDATE',
+  ProviderProfile: 'SELECT "id" FROM "ProviderProfile" WHERE "id" = $1::uuid FOR UPDATE',
+  SupportTicket: 'SELECT "id" FROM "SupportTicket" WHERE "id" = $1::uuid FOR UPDATE',
 } as const;
 
 export async function lockRow(tx: TxClient, table: keyof typeof LOCKABLE, id: string): Promise<boolean> {
   const rows = await tx.$queryRawUnsafe<{ id: string }[]>(LOCKABLE[table], id);
   return rows.length > 0;
+}
+
+/** Locks (creating it first if missing) the wallet of a user and returns its current state. */
+export async function lockWallet(tx: TxClient, userId: string): Promise<{ id: string; balance: number }> {
+  await tx.wallet.upsert({ where: { userId }, update: {}, create: { userId } });
+  const rows = await tx.$queryRawUnsafe<{ id: string; balance: number }[]>(
+    'SELECT "id", "balance" FROM "Wallet" WHERE "userId" = $1::uuid FOR UPDATE',
+    userId,
+  );
+  return rows[0];
 }
 
 /** Validates that a string is a UUID before using it in queries (avoids DB cast errors on bad input). */

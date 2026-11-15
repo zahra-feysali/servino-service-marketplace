@@ -118,9 +118,14 @@ export async function listProviderOrders(providerId: string) {
 }
 
 /** Order detail scoped to the viewer: customer (own orders) or provider (orders assigned to them). */
-export async function getOrderDetail(viewer: { kind: "customer"; customerId: string } | { kind: "provider"; providerId: string }, orderId: string) {
+export async function getOrderDetail(
+  viewer: { kind: "customer"; customerId: string } | { kind: "provider"; providerId: string } | { kind: "admin" },
+  orderId: string,
+) {
+  const scope =
+    viewer.kind === "customer" ? { customerId: viewer.customerId } : viewer.kind === "provider" ? { providerId: viewer.providerId } : {};
   return prisma.order.findFirst({
-    where: { id: orderId, ...(viewer.kind === "customer" ? { customerId: viewer.customerId } : { providerId: viewer.providerId }) },
+    where: { id: orderId, ...scope },
     select: {
       id: true,
       code: true,

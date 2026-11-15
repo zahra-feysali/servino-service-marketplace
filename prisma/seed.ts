@@ -355,15 +355,48 @@ async function main() {
   await prisma.providerProfile.upsert({
     where: { userId: pending.id },
     update: {},
-    create: { userId: pending.id, displayName: "نظافت کاظمی", yearsOfExperience: 3, verificationStatus: "PENDING", submittedAt: new Date() },
+    create: {
+      userId: pending.id,
+      displayName: "نظافت کاظمی",
+      bio: "ارائه خدمات نظافت منزل و محل کار با تیم مجرب و مواد شوینده استاندارد.",
+      yearsOfExperience: 3,
+      verificationStatus: "PENDING",
+      submittedAt: new Date(),
+    },
   });
+  const pendingProfile = await prisma.providerProfile.findUniqueOrThrow({ where: { userId: pending.id } });
+  await prisma.providerService.upsert({
+    where: { providerId_serviceId: { providerId: pendingProfile.id, serviceId: serviceIds.get("home-cleaning")! } },
+    update: {},
+    create: { providerId: pendingProfile.id, serviceId: serviceIds.get("home-cleaning")! },
+  });
+  await prisma.serviceArea.upsert({
+    where: { providerId_cityId: { providerId: pendingProfile.id, cityId: cityIds.get("isfahan")! } },
+    update: {},
+    create: { providerId: pendingProfile.id, cityId: cityIds.get("isfahan")! },
+  });
+
+  // Featured placement for the approved provider (independent of subscriptions).
+  const hasFeatured = await prisma.featuredProvider.count({ where: { providerId: providerProfile.id } });
+  if (!hasFeatured) {
+    const now = new Date();
+    await prisma.featuredProvider.createMany({
+      data: (["HOME", "CATEGORY", "SEARCH"] as const).map((placement) => ({
+        providerId: providerProfile.id,
+        placement,
+        startsAt: now,
+        endsAt: new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000),
+        sortOrder: 0,
+      })),
+    });
+  }
 
   console.log("Seeding site settings…");
   const settings: Record<string, unknown> = {
     "site.name": "سروینو",
     "site.supportPhone": "021-00000000",
+    "site.supportEmail": "support@servino.local",
     "requests.defaultExpiryDays": 7,
-    "uploads.maxSizeMb": 5,
   };
   for (const [key, value] of Object.entries(settings)) {
     await prisma.siteSetting.upsert({ where: { key }, update: { value: value as never }, create: { key, value: value as never } });

@@ -52,8 +52,9 @@ export function ActionButton({ action, children, variant, size, className, confi
       toast.success(result.message ?? "انجام شد.");
       setOpen(false);
       setNoteValue("");
-      const data = result.data as { orderId?: string } | undefined;
+      const data = result.data as { orderId?: string; redirectTo?: string } | undefined;
       if (redirectBase && data?.orderId) router.push(`${redirectBase}/${data.orderId}`);
+      else if (data?.redirectTo) router.push(data.redirectTo);
       else router.refresh();
     });
   }

@@ -68,6 +68,24 @@ Key domain modules (Phase 2):
   features/notifications/ service.ts (notify(tx, …) inside business transactions), actions.ts
   features/marketplace/actions.ts   all workflow Server Actions (select/cancel/review/offer/withdraw/order status)
   components/shared/action-button.tsx  generic confirm/note dialog button for bound Server Actions
+Key domain modules (Phase 3):
+  features/subscriptions/ lifecycle.ts (pure: window stacking, expiry, plan schema), quota.ts, service.ts (purchase,
+                          activate, expire, admin cancel/extend), plan-service.ts (plan CRUD)
+  features/payments/      rules.ts (pure: settle rules, wallet math, labels), service.ts (top-up, completeSimulatedPayment)
+  features/providers/     verification.ts (pure checklist/review rules), profile-service.ts (profile, services, areas,
+                          skills, portfolio, documents, submit), public-queries.ts (discovery + backend ordering), actions.ts
+  features/featured/      rules.ts (pure orderProviders/isFeaturedLive), service.ts
+  features/tickets/       rules.ts, service.ts, actions.ts, components/ticket-views.tsx (shared by all roles)
+  features/addresses/     schemas, service, actions, components
+  features/users/admin-service.ts   user edit/status, provider review/revoke, document status
+  features/admin/         queries.ts (requests/offers/orders/reviews), service.ts (flag/cancel request, review
+                          moderation, broadcast, typed site settings), actions.ts (ALL admin mutations, ADMIN-only)
+  features/reports/       aggregate.ts (pure buckets), queries.ts (admin reports, provider earnings)
+  components/shared/server-form.tsx   generic FormData form (Server Action or upload endpoint) + FormFieldError/SubmitButton
+  components/shared/charts.tsx        Recharts bar/pie (client)
+  app/api/provider/files              POST provider document/portfolio upload (multipart)
+  app/api/provider-files/[kind]/[id]  GET document (owner/admin) or portfolio image (public if provider APPROVED)
+  app/(public)/payment/[id]           simulated payment gateway page (clearly labelled)
 src/generated/prisma/   Prisma client output (gitignored, created by `prisma generate`/postinstall)
 tests/unit, tests/integration
 ```
@@ -121,6 +139,17 @@ tests/unit, tests/integration
   - request expiry is lazy (`expiresAt`); OPEN + past expiry is shown as EXPIRED and refuses offers/selection.
   - providers see request address/contact only via the order (after selection); attachments only if matched.
 - Uploads: allowed MIME = jpeg/png/webp/pdf, verified by magic bytes; ≤ 5 MB/file; ≤ 5 files per field/general.
+- Payments (Phase 3): all payments are simulated (`gateway` SIMULATED or WALLET, `isSimulated = true`). Amounts come
+  from DB rows (plan price, stored payment), never from the client. `completeSimulatedPayment` locks the Payment row and
+  settles it exactly once together with its side effects (subscription activation / wallet credit).
+- Wallet: balance changes only inside a transaction holding `lockWallet(tx, userId)`; every change writes a
+  WalletTransaction with `balanceAfter`; balance can never go negative (`walletBalanceAfterDebit`).
+- Earnings = value of COMPLETED orders (customers pay providers for the service directly; the platform earns from
+  subscriptions). The `ORDER_EARNING` wallet reason is intentionally unused.
+- Subscriptions: new purchases stack after the latest active one; `expireDueSubscriptions()` marks overdue ACTIVE ones
+  EXPIRED (called from provider pages and the admin plans page); quotas are still enforced in SQL at use time.
+- Featured placement is independent of plans; provider listing order is decided only by `orderProviders` on the server.
+- Public pages never expose customer full names (reviews use `maskName`) nor provider contact data.
 - The init migration `prisma/migrations/20261115000000_init` was generated offline with
   `prisma migrate diff --from-empty`. It has **not yet been applied to a real database** — see IMPLEMENTATION_STATUS.md.
 
@@ -139,7 +168,11 @@ npm run db:deploy           # prisma migrate deploy (production)
 ```
 
 ## 8. Development phases & workflow
-Current state: **Phase 2 complete** (see IMPLEMENTATION_STATUS.md). Next: Phase 3 only when the user authorizes it.
+Current state: **Phase 3 complete** (see IMPLEMENTATION_STATUS.md). Next: Phase 4 only when the user authorizes it.
+Forms convention: simple forms use `ServerForm` + FormData Server Actions (server-side Zod validation, field errors via
+`FormFieldError`); complex interactive forms (dynamic request form, form builder) use React Hook Form + shared Zod.
+Migrations: `20261115000000_init`, `20261115100000_payment_gateway_wallet` (both generated offline with
+`prisma migrate diff`, not yet applied to a database).
 Phases: 1 Foundation → 2 Core marketplace logic → 3 Dashboards & business features → 4 UI/UX, testing, finalization.
 - Implement **only the phase the user explicitly requests**; at the end of each phase: review, fix, run lint /
   typecheck / tests / build, update `CLAUDE.md`, `README.md`, `IMPLEMENTATION_STATUS.md`, review `git status`,

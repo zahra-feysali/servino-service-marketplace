@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ServiceIcon } from "@/components/shared/service-icon";
 import { getPublicServiceBySlug } from "@/features/catalog/queries";
+import { ProviderCard } from "@/features/providers/components/provider-card";
+import { listPublicProviders } from "@/features/providers/public-queries";
 import { formatNumber } from "@/lib/utils";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -22,6 +24,8 @@ export default async function ServiceDetailPage({ params }: Props) {
   const { slug } = await params;
   const service = await getPublicServiceBySlug(decodeURIComponent(slug));
   if (!service) notFound();
+  // Backend ordering: featured (CATEGORY placement) providers first, then by rating.
+  const providers = await listPublicProviders({ serviceSlug: service.slug, placement: "CATEGORY", take: 6 });
 
   const parent = service.category.parent;
 
@@ -84,6 +88,22 @@ export default async function ServiceDetailPage({ params }: Props) {
           </Button>
         </CardContent>
       </Card>
+
+      {providers.length > 0 ? (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">متخصصان این خدمت</h2>
+            <Link href={`/providers?service=${service.slug}`} className="text-sm text-primary hover:underline">
+              مشاهده همه
+            </Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {providers.map((p) => (
+              <ProviderCard key={p.id} p={p} />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

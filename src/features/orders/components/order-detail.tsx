@@ -15,11 +15,11 @@ type Order = NonNullable<Awaited<ReturnType<typeof getOrderDetail>>>;
 /** Order page body shared by customer and provider dashboards. */
 export function OrderDetail({ order, viewerRole, reviewSlot }: { order: Order; viewerRole: AppRole; reviewSlot?: React.ReactNode }) {
   const meta = ORDER_STATUS_META[order.status];
-  const counterpart =
-    viewerRole === "CUSTOMER"
-      ? { title: "متخصص", name: order.provider.displayName, phone: order.provider.user.phone }
-      : { title: "مشتری", name: order.customer.fullName, phone: order.customer.phone };
-  const showContact = order.status !== "CANCELLED";
+  const providerParty = { title: "متخصص", name: order.provider.displayName, phone: order.provider.user.phone };
+  const customerParty = { title: "مشتری", name: order.customer.fullName, phone: order.customer.phone };
+  const parties = viewerRole === "ADMIN" ? [customerParty, providerParty] : [viewerRole === "CUSTOMER" ? providerParty : customerParty];
+  // Admins always see contact data (support); parties see each other only while the order is not cancelled.
+  const showContact = viewerRole === "ADMIN" || order.status !== "CANCELLED";
 
   return (
     <>
@@ -92,7 +92,8 @@ export function OrderDetail({ order, viewerRole, reviewSlot }: { order: Order; v
         </div>
 
         <div className="space-y-6">
-          <Card>
+          {parties.map((counterpart) => (
+          <Card key={counterpart.title}>
             <CardHeader>
               <CardTitle className="text-base">{counterpart.title}</CardTitle>
             </CardHeader>
@@ -109,7 +110,7 @@ export function OrderDetail({ order, viewerRole, reviewSlot }: { order: Order; v
                   </a>
                 </p>
               ) : null}
-              {viewerRole === "CUSTOMER" && order.provider.ratingCount > 0 ? (
+              {counterpart === providerParty && order.provider.ratingCount > 0 ? (
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Star className="size-4 fill-warning text-warning" aria-hidden />
                   {order.provider.ratingAverage.toLocaleString("fa-IR", { maximumFractionDigits: 1 })} از ۵ (
@@ -118,6 +119,7 @@ export function OrderDetail({ order, viewerRole, reviewSlot }: { order: Order; v
               ) : null}
             </CardContent>
           </Card>
+          ))}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">تاریخچه وضعیت</CardTitle>

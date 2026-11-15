@@ -5,7 +5,7 @@ Customers submit service requests through dynamic forms, receive and compare off
 track the order. Providers manage their professional profile, services, service areas, subscription and
 orders. Administrators control users, catalog, requests, orders, subscriptions, payments and support.
 
-> **Status:** Phase 2 (Core marketplace logic) is complete. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
+> **Status:** Phase 3 (Dashboards & business features) is complete. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
 > for exactly what is implemented, verified, and blocked.
 
 ## Core workflow (implemented)
@@ -20,6 +20,20 @@ orders. Administrators control users, catalog, requests, orders, subscriptions, 
 6. **Order lifecycle:** provider confirms → starts → marks done → customer confirms completion (cancel/dispute with a reason).
 7. **Customer reviews** the completed order (1–5 stars, once); the provider's rating is recalculated.
 8. Every important event creates an in-app **notification**.
+
+## Business features (Phase 3)
+- **Provider workspace:** professional profile, skills, offered services, service areas, portfolio (images), verification
+  documents, checklist and *submit for verification*; subscription purchase (simulated gateway or wallet), wallet top-up,
+  payment history, earnings report with chart, customer reviews, support tickets.
+- **Customer:** address book (used in the request form), support tickets, plus requests/orders/reviews from Phase 2.
+- **Admin:** reports & charts, customers/providers management (edit, activate/deactivate/suspend), provider
+  verification (approve/reject/revoke, document review), requests & offers monitoring (flagged requests, cancel),
+  orders (incl. dispute resolution), review moderation, subscription plans and user subscriptions (renew/cancel/expire),
+  payments & wallet transactions, featured providers, support tickets, broadcast notifications, site settings.
+- **Public:** provider discovery (`/providers`, filter by service and city), provider profile pages, featured providers
+  on the home page and service pages (ordering decided on the server).
+- **Simulated payments:** `/payment/<id>` is a clearly labelled test gateway — choose *successful* or *failed*; the
+  server records the result. No card data is collected and no real money moves.
 
 ## Technology stack
 - **Next.js 16** (App Router, Server Components, Server Actions, Route Handlers), **React 19**, **TypeScript** (strict)
@@ -102,6 +116,8 @@ Created by `npm run db:seed`. Log in with the mobile number (or email) and passw
 
 Try the full flow: log in as the customer → open «تعمیر یخچال و فریزر» → submit a request in **تهران** → log in as the
 approved provider → *درخواست‌های مرتبط* → send an offer → back as the customer → select the offer → follow the order.
+As admin, open *متخصصان و تأیید* to approve the pending provider; as a provider, open *اشتراک* to buy a plan through
+the simulated gateway.
 
 These passwords are for local development only; override them with `SEED_ADMIN_PASSWORD` / `SEED_DEMO_PASSWORD`.
 Never run the seed against production (it refuses to run with `NODE_ENV=production`).

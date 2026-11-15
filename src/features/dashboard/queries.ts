@@ -82,3 +82,7 @@ export async function getAdminOverview() {
     recentUsers,
   };
 }
+
+export async function countFlaggedRequests(): Promise<number> {
+  return prisma.serviceRequest.count({ where: { isFlagged: true } });
+}

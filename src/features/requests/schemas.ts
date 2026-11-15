@@ -5,6 +5,11 @@ import { isIsoDate } from "@/features/forms/definitions";
 export const requestBaseSchema = z.object({
   serviceId: z.uuid({ error: "خدمت معتبر نیست." }),
   cityId: z.uuid({ error: "شهر را انتخاب کنید." }),
+  /** Optional saved address of the customer (ownership verified on the server). */
+  addressId: z
+    .union([z.uuid(), z.literal("")])
+    .optional()
+    .transform((v) => (v ? v : undefined)),
   addressText: z.string().trim().min(10, "نشانی را کامل‌تر وارد کنید (حداقل ۱۰ کاراکتر).").max(300),
   description: z
     .string()

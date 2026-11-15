@@ -5,6 +5,7 @@ import { ChevronLeft, Info } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ServiceIcon } from "@/components/shared/service-icon";
+import { listAddresses } from "@/features/addresses/service";
 import { getCurrentUserSafe } from "@/features/auth/current-user-safe";
 import { dashboardPathForRole } from "@/features/auth/rbac";
 import { RequestForm } from "@/features/requests/components/request-form";
@@ -39,7 +40,7 @@ export default async function RequestPage({ params }: PageProps<"/request/[slug]
     );
   }
 
-  const provinces = await getActiveCitiesGrouped();
+  const [provinces, addresses] = await Promise.all([getActiveCitiesGrouped(), listAddresses(user.id)]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10">
@@ -62,7 +63,7 @@ export default async function RequestPage({ params }: PageProps<"/request/[slug]
           </p>
         </div>
       </div>
-      <RequestForm serviceId={service.id} fields={service.fields} provinces={provinces} />
+      <RequestForm serviceId={service.id} fields={service.fields} provinces={provinces} addresses={addresses} />
     </div>
   );
 }

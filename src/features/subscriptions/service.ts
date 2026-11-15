@@ -1,6 +1,7 @@
 import { prisma, type TxClient } from "@/lib/prisma";
+import { pageArgs, toPaginated } from "@/lib/pagination";
 import { AppError, ForbiddenError, NotFoundError } from "@/lib/errors";
-import { lockWallet } from "@/lib/db-locks";
+import { lockRow, lockWallet } from "@/lib/db-locks";
 import { notify } from "@/features/notifications/service";
 import { simulatedTrackingCode, walletBalanceAfterDebit } from "@/features/payments/rules";
 import { formatDate, formatPrice } from "@/lib/utils";
@@ -146,21 +147,30 @@ export async function listActivePlans() {
 
 // ── Admin ────────────────────────────────────────────────────────────────────
 
-export async function adminListSubscriptions(status?: "PENDING" | "ACTIVE" | "EXPIRED" | "CANCELLED") {
-  return prisma.subscription.findMany({
-    where: status ? { status } : {},
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    select: {
-      id: true, status: true, startsAt: true, endsAt: true, requestsReceived: true, offersSubmitted: true, planSnapshot: true, createdAt: true,
-      plan: { select: { name: true } },
-      user: { select: { id: true, fullName: true, phone: true } },
-    },
-  });
+export async function adminListSubscriptions(status: "PENDING" | "ACTIVE" | "EXPIRED" | "CANCELLED" | undefined, page = 1) {
+  const where = status ? { status } : {};
+  const [items, total] = await Promise.all([
+    prisma.subscription.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      ...pageArgs(page),
+      select: {
+        id: true, status: true, startsAt: true, endsAt: true, requestsReceived: true, offersSubmitted: true, planSnapshot: true, createdAt: true,
+        plan: { select: { name: true } },
+        user: { select: { id: true, fullName: true, phone: true } },
+      },
+    }),
+    prisma.subscription.count({ where }),
+  ]);
+  return toPaginated(items, total, page);
 }
 
 export async function adminCancelSubscription(adminId: string, subscriptionId: string, reason: string) {
   await prisma.$transaction(async (tx) => {
+    // Lock pending payments first (same order as completeSimulatedPayment) so a concurrent
+    // settlement cannot leave a SUCCEEDED payment with a CANCELLED subscription.
+    const pendingPayments = await tx.payment.findMany({ where: { subscriptionId, status: "PENDING" }, select: { id: true } });
+    for (const p of pendingPayments) await lockRow(tx, "Payment", p.id);
     const sub = await tx.subscription.findUnique({ where: { id: subscriptionId }, select: { status: true, userId: true, plan: { select: { name: true } } } });
     if (!sub) throw new NotFoundError("اشتراک یافت نشد.");
     if (sub.status === "CANCELLED" || sub.status === "EXPIRED") throw new AppError("این اشتراک قبلاً بسته شده است.", "INVALID_STATE");

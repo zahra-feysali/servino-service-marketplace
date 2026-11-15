@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { useForm, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { KeyRound, Loader2 } from "lucide-react";
+import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -36,8 +37,9 @@ export function ChangePasswordForm() {
         }
         return;
       }
-      toast.success(result.message);
+      toast.success("رمز عبور تغییر کرد. برای امنیت بیشتر، همه نشست‌ها بسته شد؛ دوباره وارد شوید.");
       form.reset();
+      await signOut({ callbackUrl: "/login" });
     });
   }
 

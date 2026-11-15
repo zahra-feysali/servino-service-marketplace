@@ -6,6 +6,8 @@ declare module "next-auth" {
     user: {
       id: string;
       role: AppRole;
+      /** Sign-in time (ms since epoch). */
+      authTime: number;
     } & DefaultSession["user"];
   }
 
@@ -17,5 +19,6 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     role?: AppRole;
+    authTime?: number;
   }
 }

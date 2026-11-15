@@ -127,13 +127,21 @@ export async function selectOffer(customerId: string, requestId: string, offerId
       });
       const offer = await tx.providerOffer.findUnique({
         where: { id: offerId },
-        select: { id: true, requestId: true, status: true, price: true, providerId: true, provider: { select: { userId: true, displayName: true } } },
+        select: {
+          id: true, requestId: true, status: true, price: true, providerId: true,
+          provider: { select: { userId: true, displayName: true, verificationStatus: true, user: { select: { status: true } } } },
+        },
       });
 
       const error = validateSelection({ customerId, request, offer, now: new Date() });
       if (error === "NOT_OWNER") throw new ForbiddenError(SELECTION_ERROR_MESSAGES.NOT_OWNER);
       if (error) throw new AppError(SELECTION_ERROR_MESSAGES[error], error);
       const accepted = offer!;
+      // A provider who was suspended or lost approval after offering cannot be selected
+      // (otherwise the order would reveal the customer's address/phone to them).
+      if (accepted.provider.verificationStatus !== "APPROVED" || accepted.provider.user.status !== "ACTIVE") {
+        throw new AppError("این متخصص در حال حاضر امکان پذیرش سفارش ندارد.", "PROVIDER_UNAVAILABLE");
+      }
 
       // Guarded state change: only succeeds if the offer is still PENDING.
       const acceptedCount = await tx.providerOffer.updateMany({

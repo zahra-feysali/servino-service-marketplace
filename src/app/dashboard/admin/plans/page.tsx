@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PaginationNav } from "@/components/shared/pagination-nav";
+import { parsePage } from "@/lib/pagination";
 import { CalendarPlus, Pencil, Plus, Power, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,9 +32,10 @@ const limit = (v: number | null) => (v === null ? "نامحدود" : toPersianDi
 
 export default async function AdminPlansPage({ searchParams }: PageProps<"/dashboard/admin/plans">) {
   await requireRolePage("ADMIN");
-  const { status: raw } = await searchParams;
+  const sp = await searchParams;
+  const raw = sp.status;
   const status = pickParam(raw, STATUSES);
-  const [plans, subs] = await Promise.all([adminListPlans(), adminListSubscriptions(status)]);
+  const [plans, subs] = await Promise.all([adminListPlans(), adminListSubscriptions(status, parsePage(sp.page))]);
 
   return (
     <>
@@ -117,7 +120,7 @@ export default async function AdminPlansPage({ searchParams }: PageProps<"/dashb
           current={status}
           options={[{ value: "", label: "همه" }, ...STATUSES.map((s) => ({ value: s, label: SUBSCRIPTION_STATUS_META[s].label }))]}
         />
-        {subs.length === 0 ? (
+        {subs.items.length === 0 ? (
           <EmptyState title="اشتراکی یافت نشد" />
         ) : (
           <div className="rounded-xl border bg-card">
@@ -133,7 +136,7 @@ export default async function AdminPlansPage({ searchParams }: PageProps<"/dashb
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {subs.map((s) => (
+                {subs.items.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell>
                       {s.user.fullName}
@@ -180,6 +183,7 @@ export default async function AdminPlansPage({ searchParams }: PageProps<"/dashb
             </Table>
           </div>
         )}
+        <PaginationNav basePath="/dashboard/admin/plans" params={sp} page={subs.page} totalPages={subs.totalPages} total={subs.total} />
       </section>
     </>
   );

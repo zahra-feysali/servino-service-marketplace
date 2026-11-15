@@ -32,10 +32,11 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/provide
   } else {
     const item = await prisma.portfolioItem.findUnique({
       where: { id },
-      select: { imageKey: true, title: true, provider: { select: { userId: true, verificationStatus: true } } },
+      select: { imageKey: true, title: true, provider: { select: { userId: true, verificationStatus: true, user: { select: { status: true } } } } },
     });
     if (!item?.imageKey) return notFound();
-    isPublic = item.provider.verificationStatus === "APPROVED";
+    // Same visibility rule as public provider pages: approved AND active account.
+    isPublic = item.provider.verificationStatus === "APPROVED" && item.provider.user.status === "ACTIVE";
     const allowed = isPublic || user?.role === "ADMIN" || user?.id === item.provider.userId;
     if (!allowed) return notFound();
     key = item.imageKey;
@@ -54,7 +55,8 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/provide
       "Content-Type": mime,
       "Content-Length": String(bytes.byteLength),
       "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(name)}`,
-      "Cache-Control": isPublic ? "public, max-age=3600" : "private, no-store",
+      // Short private cache so suspensions take effect quickly and shared caches never keep the file.
+      "Cache-Control": isPublic ? "private, max-age=300" : "private, no-store",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
     },

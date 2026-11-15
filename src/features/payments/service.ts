@@ -1,13 +1,18 @@
 import { prisma } from "@/lib/prisma";
+import { pageArgs, toPaginated } from "@/lib/pagination";
+import type { Prisma } from "@/generated/prisma/client";
 import { AppError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { lockRow, lockWallet } from "@/lib/db-locks";
 import { notify } from "@/features/notifications/service";
 import { activateSubscription } from "@/features/subscriptions/service";
 import { formatPrice } from "@/lib/utils";
-import { canCompleteSimulatedPayment, simulatedTrackingCode, walletBalanceAfterCredit } from "./rules";
+import { canCompleteSimulatedPayment, simulatedPaymentsEnabled, simulatedTrackingCode, walletBalanceAfterCredit } from "./rules";
 
 /** Creates a PENDING simulated top-up payment for the user's wallet. */
 export async function createTopUp(userId: string, amount: number) {
+  if (!simulatedPaymentsEnabled()) {
+    throw new AppError("درگاه پرداخت شبیه‌سازی‌شده در این محیط غیرفعال است.", "SIMULATION_DISABLED");
+  }
   return prisma.payment.create({
     data: { userId, amount, purpose: "WALLET_TOPUP", status: "PENDING", gateway: "SIMULATED", isSimulated: true },
     select: { id: true },
@@ -21,6 +26,9 @@ export async function createTopUp(userId: string, amount: number) {
  * exactly once together with it.
  */
 export async function completeSimulatedPayment(userId: string, paymentId: string, outcome: "SUCCESS" | "FAIL") {
+  if (!simulatedPaymentsEnabled()) {
+    throw new AppError("درگاه پرداخت شبیه‌سازی‌شده در این محیط غیرفعال است.", "SIMULATION_DISABLED");
+  }
   return prisma.$transaction(async (tx) => {
     if (!(await lockRow(tx, "Payment", paymentId))) throw new NotFoundError("پرداخت یافت نشد.");
     const payment = await tx.payment.findUniqueOrThrow({
@@ -98,26 +106,38 @@ export async function getWalletOverview(userId: string) {
 
 // ── Admin ────────────────────────────────────────────────────────────────────
 
-export async function adminListPayments(filter: { status?: "PENDING" | "SUCCEEDED" | "FAILED"; purpose?: "SUBSCRIPTION" | "FEATURED_PLACEMENT" | "WALLET_TOPUP" }) {
-  return prisma.payment.findMany({
-    where: { ...(filter.status ? { status: filter.status } : {}), ...(filter.purpose ? { purpose: filter.purpose } : {}) },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    select: {
-      id: true, code: true, amount: true, purpose: true, status: true, gateway: true, isSimulated: true, trackingCode: true,
-      failureReason: true, paidAt: true, createdAt: true, user: { select: { fullName: true, phone: true } },
-    },
-  });
+export async function adminListPayments(
+  filter: { status?: "PENDING" | "SUCCEEDED" | "FAILED"; purpose?: "SUBSCRIPTION" | "FEATURED_PLACEMENT" | "WALLET_TOPUP" },
+  page = 1,
+) {
+  const where: Prisma.PaymentWhereInput = { ...(filter.status ? { status: filter.status } : {}), ...(filter.purpose ? { purpose: filter.purpose } : {}) };
+  const [items, total] = await Promise.all([
+    prisma.payment.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      ...pageArgs(page),
+      select: {
+        id: true, code: true, amount: true, purpose: true, status: true, gateway: true, isSimulated: true, trackingCode: true,
+        failureReason: true, paidAt: true, createdAt: true, user: { select: { fullName: true, phone: true } },
+      },
+    }),
+    prisma.payment.count({ where }),
+  ]);
+  return toPaginated(items, total, page);
 }
 
-export async function adminListWalletTransactions() {
-  return prisma.walletTransaction.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    select: {
-      id: true, type: true, reason: true, amount: true, balanceAfter: true, description: true, createdAt: true,
-      wallet: { select: { user: { select: { fullName: true, phone: true } } } },
-      payment: { select: { code: true } },
-    },
-  });
+export async function adminListWalletTransactions(page = 1) {
+  const [items, total] = await Promise.all([
+    prisma.walletTransaction.findMany({
+      orderBy: { createdAt: "desc" },
+      ...pageArgs(page),
+      select: {
+        id: true, type: true, reason: true, amount: true, balanceAfter: true, description: true, createdAt: true,
+        wallet: { select: { user: { select: { fullName: true, phone: true } } } },
+        payment: { select: { code: true } },
+      },
+    }),
+    prisma.walletTransaction.count(),
+  ]);
+  return toPaginated(items, total, page);
 }

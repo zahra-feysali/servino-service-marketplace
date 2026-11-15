@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireRole } from "@/lib/authz";
+import { bodySizeError, isSameOriginRequest } from "@/lib/request-guards";
 import { AppError, toActionError } from "@/lib/errors";
 import { FILE_FIELD_PREFIX, GENERAL_ATTACHMENTS_FIELD } from "@/features/requests/schemas";
 import { submitServiceRequest, type UploadedFile } from "@/features/requests/service";
@@ -18,16 +19,18 @@ const MAX_BODY_BYTES = 30 * 1024 * 1024;
 export async function POST(request: NextRequest) {
   try {
     // CSRF defence-in-depth: only same-origin browser requests (session cookie is SameSite=Lax).
-    const origin = request.headers.get("origin");
-    if (origin && origin !== request.nextUrl.origin) {
+    if (!isSameOriginRequest(request)) {
       return NextResponse.json({ ok: false, error: "درخواست نامعتبر است." }, { status: 403 });
     }
 
     const user = await requireRole("CUSTOMER");
 
-    const length = Number(request.headers.get("content-length") ?? "0");
-    if (length > MAX_BODY_BYTES) {
-      return NextResponse.json({ ok: false, error: "حجم کل فایل‌ها بیش از حد مجاز است." }, { status: 413 });
+    const sizeError = bodySizeError(request, MAX_BODY_BYTES);
+    if (sizeError) {
+      return NextResponse.json(
+        { ok: false, error: sizeError === "TOO_LARGE" ? "حجم کل فایل‌ها بیش از حد مجاز است." : "درخواست نامعتبر است." },
+        { status: sizeError === "TOO_LARGE" ? 413 : 411 },
+      );
     }
     if (!request.headers.get("content-type")?.includes("multipart/form-data")) {
       return NextResponse.json({ ok: false, error: "قالب درخواست نامعتبر است." }, { status: 415 });

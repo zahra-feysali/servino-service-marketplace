@@ -6,6 +6,17 @@ import { z } from "zod";
  * The outcome is always decided and persisted by the server; the browser only asks.
  */
 
+/**
+ * Simulated settlement lets the payer choose the outcome, which is only acceptable while no
+ * real gateway exists. It is ON by default outside production and must be enabled explicitly
+ * in production with ALLOW_SIMULATED_PAYMENTS=true (e.g. for a demo deployment).
+ */
+export function simulatedPaymentsEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  if (env.ALLOW_SIMULATED_PAYMENTS === "true") return true;
+  if (env.ALLOW_SIMULATED_PAYMENTS === "false") return false;
+  return env.NODE_ENV !== "production";
+}
+
 export const MIN_TOP_UP = 10_000;
 export const MAX_TOP_UP = 50_000_000;
 

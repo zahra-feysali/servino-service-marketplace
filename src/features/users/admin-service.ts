@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { pageArgs, toPaginated } from "@/lib/pagination";
+import type { Prisma } from "@/generated/prisma/client";
 import { AppError, ForbiddenError, NotFoundError, isUniqueConstraintError } from "@/lib/errors";
 import { lockRow } from "@/lib/db-locks";
 import { fullNameSchema, phoneSchema } from "@/features/auth/schemas";
@@ -18,23 +20,31 @@ export const adminUserUpdateSchema = z.object({
     .refine((v) => v === null || z.email().safeParse(v).success, "ایمیل معتبر نیست."),
 });
 
-export async function adminListUsers(filter: { role: "CUSTOMER" | "PROVIDER"; q?: string; status?: "ACTIVE" | "INACTIVE" | "SUSPENDED"; verification?: "DRAFT" | "PENDING" | "APPROVED" | "REJECTED" }) {
+export async function adminListUsers(
+  filter: { role: "CUSTOMER" | "PROVIDER"; q?: string; status?: "ACTIVE" | "INACTIVE" | "SUSPENDED"; verification?: "DRAFT" | "PENDING" | "APPROVED" | "REJECTED" },
+  page = 1,
+) {
   const q = filter.q?.trim();
-  return prisma.user.findMany({
-    where: {
-      role: filter.role,
-      ...(filter.status ? { status: filter.status } : {}),
-      ...(filter.verification ? { providerProfile: { verificationStatus: filter.verification } } : {}),
-      ...(q ? { OR: [{ fullName: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }, { email: { contains: q, mode: "insensitive" } }] } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    select: {
-      id: true, fullName: true, phone: true, email: true, status: true, createdAt: true, lastLoginAt: true,
-      providerProfile: { select: { id: true, displayName: true, verificationStatus: true, ratingAverage: true, ratingCount: true } },
-      _count: { select: { requests: true, customerOrders: true } },
-    },
-  });
+  const where: Prisma.UserWhereInput = {
+    role: filter.role,
+    ...(filter.status ? { status: filter.status } : {}),
+    ...(filter.verification ? { providerProfile: { verificationStatus: filter.verification } } : {}),
+    ...(q ? { OR: [{ fullName: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }, { email: { contains: q, mode: "insensitive" } }] } : {}),
+  };
+  const [items, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      ...pageArgs(page),
+      select: {
+        id: true, fullName: true, phone: true, email: true, status: true, createdAt: true, lastLoginAt: true,
+        providerProfile: { select: { id: true, displayName: true, verificationStatus: true, ratingAverage: true, ratingCount: true } },
+        _count: { select: { requests: true, customerOrders: true } },
+      },
+    }),
+    prisma.user.count({ where }),
+  ]);
+  return toPaginated(items, total, page);
 }
 
 export async function adminGetUser(id: string) {

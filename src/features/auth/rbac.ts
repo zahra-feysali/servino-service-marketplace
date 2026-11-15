@@ -24,9 +24,19 @@ export function dashboardPathForRole(role: AppRole): string {
   return DASHBOARD_PATHS[role];
 }
 
-/** True for same-origin relative paths only (rejects `//evil.com`, `/\evil.com`, absolute URLs). */
+/**
+ * True for same-origin relative paths only. Rejects absolute URLs, protocol-relative `//host`,
+ * backslashes and control characters (browsers strip tabs/newlines, so `/\t/evil.com` would
+ * otherwise become `//evil.com`), then verifies the URL parser keeps the origin unchanged.
+ */
 export function isSafeRelativePath(raw: string | null | undefined): raw is string {
-  return !!raw && raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/\\");
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return false;
+  if (/[\\\u0000-\u001f\u007f]/.test(raw)) return false;
+  try {
+    return new URL(raw, "http://servino.invalid").origin === "http://servino.invalid";
+  } catch {
+    return false;
+  }
 }
 
 /**

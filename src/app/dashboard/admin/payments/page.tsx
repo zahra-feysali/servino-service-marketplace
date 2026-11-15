@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PaginationNav } from "@/components/shared/pagination-nav";
+import { parsePage } from "@/lib/pagination";
 import { FlaskConical } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FilterLinks, pickParam } from "@/components/shared/filter-links";
@@ -17,6 +19,9 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps<"/da
   const view = sp.view === "wallet" ? "wallet" : "payments";
   const status = pickParam(sp.status, STATUSES);
   const base = "/dashboard/admin/payments";
+  const page = parsePage(sp.page);
+  const wallet = view === "wallet" ? await adminListWalletTransactions(page) : null;
+  const payments = view === "wallet" ? null : await adminListPayments({ status }, page);
 
   return (
     <>
@@ -28,7 +33,7 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps<"/da
       <FilterLinks basePath={base} param="view" current={view === "wallet" ? "wallet" : ""} options={[{ value: "", label: "پرداخت‌ها" }, { value: "wallet", label: "تراکنش‌های کیف پول" }]} />
       {view === "wallet" ? (
         <WalletTransactionsTable
-          transactions={(await adminListWalletTransactions()).map((t) => ({ ...t, owner: `${t.wallet.user.fullName} (${t.wallet.user.phone})` }))}
+          transactions={wallet!.items.map((t) => ({ ...t, owner: `${t.wallet.user.fullName} (${t.wallet.user.phone})` }))}
         />
       ) : (
         <>
@@ -38,9 +43,11 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps<"/da
             current={status}
             options={[{ value: "", label: "همه" }, ...STATUSES.map((s) => ({ value: s, label: PAYMENT_STATUS_META[s].label }))]}
           />
-          <PaymentsTable payments={await adminListPayments({ status })} />
+          <PaymentsTable payments={payments!.items} />
         </>
       )}
+      {wallet ? <PaginationNav basePath={base} params={sp} page={wallet.page} totalPages={wallet.totalPages} total={wallet.total} /> : null}
+      {payments ? <PaginationNav basePath={base} params={sp} page={payments.page} totalPages={payments.totalPages} total={payments.total} /> : null}
     </>
   );
 }

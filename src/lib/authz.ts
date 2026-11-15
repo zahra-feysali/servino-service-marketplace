@@ -28,12 +28,15 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, fullName: true, phone: true, email: true, role: true, status: true },
+    select: { id: true, fullName: true, phone: true, email: true, role: true, status: true, passwordChangedAt: true },
   });
   if (!user || user.status !== "ACTIVE") return null;
+  // Sessions issued before the latest password change are no longer valid.
+  if (user.passwordChangedAt && user.passwordChangedAt.getTime() > (session.user.authTime ?? 0)) return null;
 
-  const { status: _status, ...safe } = user;
+  const { status: _status, passwordChangedAt: _changed, ...safe } = user;
   void _status;
+  void _changed;
   return safe;
 });
 

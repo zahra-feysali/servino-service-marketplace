@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { pageArgs, toPaginated } from "@/lib/pagination";
 import { AppError, NotFoundError } from "@/lib/errors";
 import { lockRow } from "@/lib/db-locks";
 import { notify } from "@/features/notifications/service";
@@ -50,13 +51,18 @@ export async function adminGetTicket(ticketId: string) {
   return prisma.supportTicket.findUnique({ where: { id: ticketId }, select: ticketDetailSelect });
 }
 
-export async function adminListTickets(status?: TicketStatus) {
-  return prisma.supportTicket.findMany({
-    where: status ? { status } : {},
-    orderBy: { updatedAt: "desc" },
-    take: 200,
-    select: { id: true, code: true, subject: true, category: true, status: true, createdAt: true, updatedAt: true, user: { select: { fullName: true, role: true } } },
-  });
+export async function adminListTickets(status: TicketStatus | undefined, page = 1) {
+  const where = status ? { status } : {};
+  const [items, total] = await Promise.all([
+    prisma.supportTicket.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      ...pageArgs(page),
+      select: { id: true, code: true, subject: true, category: true, status: true, createdAt: true, updatedAt: true, user: { select: { fullName: true, role: true } } },
+    }),
+    prisma.supportTicket.count({ where }),
+  ]);
+  return toPaginated(items, total, page);
 }
 
 /**

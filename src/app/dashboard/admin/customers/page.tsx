@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PaginationNav } from "@/components/shared/pagination-nav";
+import { parsePage } from "@/lib/pagination";
 import { FilterLinks, pickParam } from "@/components/shared/filter-links";
 import { PageHeader } from "@/components/shared/page-header";
 import { adminListUsers } from "@/features/users/admin-service";
@@ -13,7 +15,7 @@ export default async function AdminCustomersPage({ searchParams }: PageProps<"/d
   const sp = await searchParams;
   const status = pickParam(sp.status, STATUSES);
   const q = typeof sp.q === "string" ? sp.q.slice(0, 100) : undefined;
-  const users = await adminListUsers({ role: "CUSTOMER", status, q });
+  const users = await adminListUsers({ role: "CUSTOMER", status, q }, parsePage(sp.page));
 
   return (
     <>
@@ -31,7 +33,8 @@ export default async function AdminCustomersPage({ searchParams }: PageProps<"/d
           { value: "SUSPENDED", label: "مسدود" },
         ]}
       />
-      <UsersTable users={users} kind="customer" />
+      <UsersTable users={users.items} kind="customer" />
+      <PaginationNav basePath="/dashboard/admin/customers" params={sp} page={users.page} totalPages={users.totalPages} total={users.total} />
     </>
   );
 }

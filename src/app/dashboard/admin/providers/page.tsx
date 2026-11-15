@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PaginationNav } from "@/components/shared/pagination-nav";
+import { parsePage } from "@/lib/pagination";
 import { FilterLinks, pickParam } from "@/components/shared/filter-links";
 import { PageHeader } from "@/components/shared/page-header";
 import { adminListUsers } from "@/features/users/admin-service";
@@ -13,7 +15,7 @@ export default async function AdminProvidersPage({ searchParams }: PageProps<"/d
   const sp = await searchParams;
   const verification = pickParam(sp.verification, VERIFICATIONS);
   const q = typeof sp.q === "string" ? sp.q.slice(0, 100) : undefined;
-  const users = await adminListUsers({ role: "PROVIDER", verification, q });
+  const users = await adminListUsers({ role: "PROVIDER", verification, q }, parsePage(sp.page));
 
   return (
     <>
@@ -32,7 +34,8 @@ export default async function AdminProvidersPage({ searchParams }: PageProps<"/d
           { value: "DRAFT", label: "پروفایل ناقص" },
         ]}
       />
-      <UsersTable users={users} kind="provider" />
+      <UsersTable users={users.items} kind="provider" />
+      <PaginationNav basePath="/dashboard/admin/providers" params={sp} page={users.page} totalPages={users.totalPages} total={users.total} />
     </>
   );
 }

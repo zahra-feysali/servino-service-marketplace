@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, type Resolver } from "react-hook-form";
+import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Loader2, Paperclip, Send, X } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MAX_UPLOAD_MB, UPLOADABLE_MIME_TYPES, type FieldDefinition } from "@/features/forms/definitions";
 import { buildAnswersSchema, defaultAnswers, fileRules, validateFieldFiles } from "@/features/forms/answers";
 import { FILE_FIELD_PREFIX, GENERAL_ATTACHMENTS_FIELD, requestBaseSchema } from "@/features/requests/schemas";
+import { JalaliHint } from "@/components/shared/jalali-hint";
 import { DynamicField } from "./dynamic-field";
 
 type Province = { id: string; name: string; cities: { id: string; name: string }[] };
@@ -58,6 +59,7 @@ export function RequestForm({
     defaultValues: { addressId: "", cityId: "", addressText: "", preferredDate: "", description: "", answers: defaultAnswers(fields) },
   });
   const { errors } = form.formState;
+  const preferredDate = useWatch({ control: form.control, name: "preferredDate" });
   const answerErrors = (errors.answers ?? {}) as Record<string, { message?: string } | undefined>;
   const fileFields = fields.filter((f) => f.type === "FILE");
 
@@ -248,6 +250,7 @@ export function RequestForm({
               <Field data-invalid={!!errors.preferredDate}>
                 <FieldLabel htmlFor="preferredDate">تاریخ ترجیحی (اختیاری)</FieldLabel>
                 <Input id="preferredDate" type="date" dir="ltr" className="text-left" {...form.register("preferredDate")} />
+                <JalaliHint value={preferredDate} />
                 <FieldError errors={[errors.preferredDate]} />
               </Field>
             </div>

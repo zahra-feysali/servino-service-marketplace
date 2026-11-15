@@ -36,7 +36,7 @@ export async function changePasswordAction(input: ChangePasswordInput): Promise<
       return fail("اطلاعات وارد شده معتبر نیست.", z.flattenError(parsed.error).fieldErrors);
     }
     await changePassword(user.id, parsed.data.currentPassword, parsed.data.newPassword);
-    return ok(undefined, "رمز عبور با موفقیت تغییر کرد.");
+    return ok(undefined, "رمز عبور با موفقیت تغییر کرد. لطفاً دوباره وارد شوید.");
   } catch (error) {
     return toActionError(error);
   }

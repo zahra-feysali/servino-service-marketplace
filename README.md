@@ -5,7 +5,7 @@ Customers submit service requests through dynamic forms, receive and compare off
 track the order. Providers manage their professional profile, services, service areas, subscription and
 orders. Administrators control users, catalog, requests, orders, subscriptions, payments and support.
 
-> **Status:** Phase 3 (Dashboards & business features) is complete. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
+> **Status:** All four development phases are complete. See [FINAL_REPORT.md](FINAL_REPORT.md) for the final report. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
 > for exactly what is implemented, verified, and blocked.
 
 ## Core workflow (implemented)
@@ -68,6 +68,7 @@ cp .env.example .env
 | `NEXTAUTH_URL` | Public base URL, e.g. `http://localhost:3000` |
 | `UPLOAD_DIR` | Private directory for uploaded request attachments (outside `public/`, git-ignored), default `storage/uploads`. Must be writable by the app; back it up together with the database |
 | `SEED_ADMIN_PASSWORD`, `SEED_DEMO_PASSWORD` | Optional overrides for demo passwords used by the seed |
+| `ALLOW_SIMULATED_PAYMENTS` | `true` to allow the simulated payment gateway in production (always allowed in development; set `false` to disable) |
 
 `.env` is git-ignored — never commit it.
 
@@ -126,6 +127,14 @@ Never run the seed against production (it refuses to run with `NODE_ENV=producti
 This version has **no real payment gateway**. All payments are simulated, stored in the database with
 `isSimulated = true` / gateway `SIMULATED`, and clearly labeled in the UI (implemented in Phase 3).
 
+## Production deployment notes
+- Run `npm run db:deploy` (prisma migrate deploy), then `npm run build && npm start` behind HTTPS.
+- Set a strong `AUTH_SECRET`, the public `NEXTAUTH_URL`, and a persistent, backed-up `UPLOAD_DIR`.
+- The reverse proxy should set `X-Real-IP` (used for rate limiting) and limit request bodies (e.g. 30 MB).
+- Login/registration rate limits are in-memory per process; with several instances use sticky sessions or a shared store.
+- Simulated payments are disabled in production unless `ALLOW_SIMULATED_PAYMENTS=true` (e.g. for a demo).
+
 ## Project documentation
 - [CLAUDE.md](CLAUDE.md) — permanent architecture, conventions and rules
 - [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) — phase progress, test results, blocked items, next steps
+- [FINAL_REPORT.md](FINAL_REPORT.md) — final project report

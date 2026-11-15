@@ -10,7 +10,7 @@ import type { adminListUsers } from "@/features/users/admin-service";
 import { USER_STATUS_LABELS } from "@/features/users/labels";
 import { formatDate, toPersianDigits } from "@/lib/utils";
 
-type Users = Awaited<ReturnType<typeof adminListUsers>>;
+type Users = Awaited<ReturnType<typeof adminListUsers>>["items"];
 
 export function UserSearch({ basePath, q, hidden }: { basePath: string; q?: string; hidden?: Record<string, string | undefined> }) {
   return (

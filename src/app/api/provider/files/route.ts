@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { requireRole } from "@/lib/authz";
+import { bodySizeError, isSameOriginRequest } from "@/lib/request-guards";
 import { AppError, fail, ok, toActionError } from "@/lib/errors";
 import { file, str } from "@/lib/form-data";
 import { addPortfolioItem, addProviderDocument } from "@/features/providers/profile-service";
@@ -12,11 +13,13 @@ import { documentInputSchema, portfolioInputSchema } from "@/features/providers/
  */
 export async function POST(request: NextRequest) {
   try {
-    const origin = request.headers.get("origin");
-    if (origin && origin !== request.nextUrl.origin) return NextResponse.json(fail("درخواست نامعتبر است."), { status: 403 });
+    if (!isSameOriginRequest(request)) return NextResponse.json(fail("درخواست نامعتبر است."), { status: 403 });
     const user = await requireRole("PROVIDER");
-    if (Number(request.headers.get("content-length") ?? "0") > 6 * 1024 * 1024) {
-      return NextResponse.json(fail("حجم فایل بیش از حد مجاز است."), { status: 413 });
+    const sizeError = bodySizeError(request, 6 * 1024 * 1024);
+    if (sizeError) {
+      return NextResponse.json(fail(sizeError === "TOO_LARGE" ? "حجم فایل بیش از حد مجاز است." : "درخواست نامعتبر است."), {
+        status: sizeError === "TOO_LARGE" ? 413 : 411,
+      });
     }
     const form = await request.formData();
     const kind = str(form, "kind");

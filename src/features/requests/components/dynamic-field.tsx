@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { JalaliHint } from "@/components/shared/jalali-hint";
 import type { FieldDefinition } from "@/features/forms/definitions";
 
 /** Renders one dynamic (admin-defined) field, except FILE fields which the form handles itself. */
@@ -61,6 +62,7 @@ export function DynamicField<T extends FieldValues>({
                   value={f.value === undefined || f.value === null ? "" : String(f.value)}
                 />
               )}
+              {field.type === "DATE" ? <JalaliHint value={f.value} /> : null}
               {help}
               {err}
             </Field>

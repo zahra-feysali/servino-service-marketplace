@@ -113,7 +113,14 @@ tests/unit, tests/integration
 - Uploads: validate declared MIME + size, then the real type from magic bytes (`lib/files.ts`); store under
   `UPLOAD_DIR` (outside `public/`, git-ignored) with server-generated keys; serve only via `/api/attachments/[id]`
   with `nosniff`, `private, no-store` and a sandbox CSP. Delete saved files if the DB transaction fails.
-- Route Handlers that mutate state check the `Origin` header (same-origin only) in addition to SameSite cookies.
+- Route Handlers that mutate state call `isSameOriginRequest()` and `bodySizeError()` (`src/lib/request-guards.ts`):
+  cross-site Origin/Sec-Fetch-Site → 403, missing Content-Length → 411, oversized → 413.
+- Login (failed attempts per identifier and per IP) and registration (per IP) are rate limited (`src/lib/rate-limit.ts`,
+  in-memory — use a shared store if running several instances). Client IP = `x-real-ip` or right-most `x-forwarded-for`.
+- Redirect targets must pass `isSafeRelativePath` (rejects control chars, backslashes, protocol-relative URLs).
+- Password change sets `User.passwordChangedAt`; sessions with an older `authTime` are rejected in `getCurrentUser`.
+- Simulated payment settlement is disabled in production unless `ALLOW_SIMULATED_PAYMENTS=true`.
+- Global security headers are set in `next.config.ts` (frame DENY, nosniff, referrer, permissions, COOP, HSTS in prod).
 - Validate route/action ids with `isUuid` before querying; unauthorized lookups return "not found".
 - Never return `passwordHash` or other sensitive fields — always `select` explicit fields.
 - Never commit `.env` or secrets. `.env.example` documents variables.
@@ -168,11 +175,13 @@ npm run db:deploy           # prisma migrate deploy (production)
 ```
 
 ## 8. Development phases & workflow
-Current state: **Phase 3 complete** (see IMPLEMENTATION_STATUS.md). Next: Phase 4 only when the user authorizes it.
+Current state: **All four phases complete** (see IMPLEMENTATION_STATUS.md and FINAL_REPORT.md). Further work only on
+explicit user request; keep every rule in this file.
 Forms convention: simple forms use `ServerForm` + FormData Server Actions (server-side Zod validation, field errors via
 `FormFieldError`); complex interactive forms (dynamic request form, form builder) use React Hook Form + shared Zod.
-Migrations: `20261115000000_init`, `20261115100000_payment_gateway_wallet` (both generated offline with
-`prisma migrate diff`, not yet applied to a database).
+Migrations: `20261115000000_init`, `20261115100000_payment_gateway_wallet`, `20261116000000_user_password_changed_at`
+(all generated offline with `prisma migrate diff`, not yet applied to a database).
+Lists: paginate with `src/lib/pagination.ts` (`parsePage`, `pageArgs`, `toPaginated`) + `<PaginationNav>`; never load unbounded lists.
 Phases: 1 Foundation → 2 Core marketplace logic → 3 Dashboards & business features → 4 UI/UX, testing, finalization.
 - Implement **only the phase the user explicitly requests**; at the end of each phase: review, fix, run lint /
   typecheck / tests / build, update `CLAUDE.md`, `README.md`, `IMPLEMENTATION_STATUS.md`, review `git status`,

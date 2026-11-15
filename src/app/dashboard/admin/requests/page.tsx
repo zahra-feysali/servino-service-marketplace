@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PaginationNav } from "@/components/shared/pagination-nav";
+import { parsePage } from "@/lib/pagination";
 import Link from "next/link";
 import { ClipboardList, Flag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +28,7 @@ export default async function AdminRequestsPage({ searchParams }: PageProps<"/da
     <>
       <PageHeader title="درخواست‌ها و پیشنهادها" description="نظارت بر درخواست‌ها، پیشنهادها و درخواست‌های گزارش‌شده" />
       <FilterLinks basePath={base} param="view" current={view === "offers" ? "offers" : ""} options={[{ value: "", label: "درخواست‌ها" }, { value: "offers", label: "پیشنهادها" }]} />
-      {view === "offers" ? <OffersView status={pickParam(sp.status, OFFER_STATUSES)} /> : <RequestsView sp={sp} />}
+      {view === "offers" ? <OffersView status={pickParam(sp.status, OFFER_STATUSES)} sp={sp} /> : <RequestsView sp={sp} />}
     </>
   );
 }
@@ -35,7 +37,7 @@ async function RequestsView({ sp }: { sp: Record<string, string | string[] | und
   const status = pickParam(sp.status, STATUSES);
   const flagged = sp.flagged === "1";
   const code = typeof sp.code === "string" && /^\d{1,9}$/.test(sp.code) ? Number(sp.code) : undefined;
-  const requests = await adminListRequests({ status, flagged, code });
+  const requests = await adminListRequests({ status, flagged, code }, parsePage(sp.page));
   const base = "/dashboard/admin/requests";
 
   return (
@@ -59,7 +61,7 @@ async function RequestsView({ sp }: { sp: Record<string, string | string[] | und
           <Button size="sm" variant="outline" type="submit">جستجو</Button>
         </form>
       </div>
-      {requests.length === 0 ? (
+      {requests.items.length === 0 ? (
         <EmptyState icon={ClipboardList} title="درخواستی یافت نشد" />
       ) : (
         <div className="rounded-xl border bg-card">
@@ -77,7 +79,7 @@ async function RequestsView({ sp }: { sp: Record<string, string | string[] | und
               </TableRow>
             </TableHeader>
             <TableBody>
-              {requests.map((r) => {
+              {requests.items.map((r) => {
                 const s = effectiveRequestStatus(r);
                 return (
                   <TableRow key={r.id}>
@@ -107,12 +109,13 @@ async function RequestsView({ sp }: { sp: Record<string, string | string[] | und
           </Table>
         </div>
       )}
+      <PaginationNav basePath={base} params={sp} page={requests.page} totalPages={requests.totalPages} total={requests.total} />
     </>
   );
 }
 
-async function OffersView({ status }: { status?: (typeof OFFER_STATUSES)[number] }) {
-  const offers = await adminListOffers(status);
+async function OffersView({ status, sp }: { status?: (typeof OFFER_STATUSES)[number]; sp: Record<string, string | string[] | undefined> }) {
+  const offers = await adminListOffers(status, parsePage(sp.page));
   return (
     <>
       <FilterLinks
@@ -122,7 +125,7 @@ async function OffersView({ status }: { status?: (typeof OFFER_STATUSES)[number]
         extra={{ view: "offers" }}
         options={[{ value: "", label: "همه" }, ...OFFER_STATUSES.map((s) => ({ value: s, label: OFFER_STATUS_META[s].label }))]}
       />
-      {offers.length === 0 ? (
+      {offers.items.length === 0 ? (
         <EmptyState title="پیشنهادی یافت نشد" />
       ) : (
         <div className="rounded-xl border bg-card">
@@ -138,7 +141,7 @@ async function OffersView({ status }: { status?: (typeof OFFER_STATUSES)[number]
               </TableRow>
             </TableHeader>
             <TableBody>
-              {offers.map((o) => (
+              {offers.items.map((o) => (
                 <TableRow key={o.id}>
                   <TableCell>
                     <Link href={`/dashboard/admin/requests/${o.request.id}`} className="text-primary hover:underline">
@@ -160,6 +163,7 @@ async function OffersView({ status }: { status?: (typeof OFFER_STATUSES)[number]
           </Table>
         </div>
       )}
+      <PaginationNav basePath="/dashboard/admin/requests" params={sp} page={offers.page} totalPages={offers.totalPages} total={offers.total} />
     </>
   );
 }

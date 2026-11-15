@@ -25,7 +25,11 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
     setFormError(null);
     const result = await signIn("credentials", { ...values, redirect: false });
     if (!result || result.error) {
-      setFormError("شماره موبایل/ایمیل یا رمز عبور اشتباه است، یا حساب شما غیرفعال است.");
+      setFormError(
+        result?.error === "RATE_LIMITED"
+          ? "تعداد تلاش‌های ورود بیش از حد مجاز است. لطفاً ۱۵ دقیقه دیگر دوباره تلاش کنید."
+          : "شماره موبایل/ایمیل یا رمز عبور اشتباه است، یا حساب شما غیرفعال است.",
+      );
       return;
     }
     router.replace(callbackUrl);

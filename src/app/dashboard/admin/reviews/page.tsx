@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PaginationNav } from "@/components/shared/pagination-nav";
+import { parsePage } from "@/lib/pagination";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { ActionButton } from "@/components/shared/action-button";
@@ -14,9 +16,10 @@ export const metadata: Metadata = { title: "نظرات" };
 
 export default async function AdminReviewsPage({ searchParams }: PageProps<"/dashboard/admin/reviews">) {
   await requireRolePage("ADMIN");
-  const { status: raw } = await searchParams;
+  const sp = await searchParams;
+  const raw = sp.status;
   const status = pickParam(raw, ["PUBLISHED", "HIDDEN"] as const);
-  const reviews = await adminListReviews(status);
+  const reviews = await adminListReviews(status, parsePage(sp.page));
 
   return (
     <>
@@ -32,7 +35,7 @@ export default async function AdminReviewsPage({ searchParams }: PageProps<"/das
         ]}
       />
       <ReviewList
-        reviews={reviews.map((r) => ({
+        reviews={reviews.items.map((r) => ({
           ...r,
           subtitle: `${r.provider.displayName} · سفارش ${toPersianDigits(r.order.code)}`,
           actions: (
@@ -60,6 +63,7 @@ export default async function AdminReviewsPage({ searchParams }: PageProps<"/das
           ),
         }))}
       />
+      <PaginationNav basePath="/dashboard/admin/reviews" params={sp} page={reviews.page} totalPages={reviews.totalPages} total={reviews.total} />
     </>
   );
 }

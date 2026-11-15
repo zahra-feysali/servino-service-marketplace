@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PaginationNav } from "@/components/shared/pagination-nav";
+import { parsePage } from "@/lib/pagination";
 import { FilterLinks, pickParam } from "@/components/shared/filter-links";
 import { TicketList } from "@/features/tickets/components/ticket-views";
 import { TICKET_STATUS_META } from "@/features/tickets/rules";
@@ -10,12 +12,14 @@ const STATUSES = ["OPEN", "CUSTOMER_REPLY", "ANSWERED", "CLOSED"] as const;
 
 export default async function AdminTicketsPage({ searchParams }: PageProps<"/dashboard/admin/tickets">) {
   await requireRolePage("ADMIN");
-  const { status: raw } = await searchParams;
+  const sp = await searchParams;
+  const raw = sp.status;
   const status = pickParam(raw, STATUSES);
-  const tickets = await adminListTickets(status);
+  const tickets = await adminListTickets(status, parsePage(sp.page));
   return (
+    <>
     <TicketList
-      tickets={tickets}
+      tickets={tickets.items}
       basePath="/dashboard/admin/tickets"
       showNew={false}
       showUser
@@ -28,5 +32,7 @@ export default async function AdminTicketsPage({ searchParams }: PageProps<"/das
         />
       }
     />
+    <PaginationNav basePath="/dashboard/admin/tickets" params={sp} page={tickets.page} totalPages={tickets.totalPages} total={tickets.total} />
+    </>
   );
 }

@@ -29,14 +29,23 @@ export default async function CustomerDashboardPage() {
         <EmptyState
           icon={Search}
           title="هنوز درخواستی ثبت نکرده‌اید"
-          description="خدمات موجود را ببینید. امکان ثبت درخواست و دریافت پیشنهاد در فاز بعدی توسعه فعال می‌شود."
+          description="خدمت مورد نیاز خود را انتخاب کنید، فرم کوتاه آن را پر کنید و از متخصصان پیشنهاد قیمت بگیرید."
           action={
             <Button asChild>
-              <Link href="/services">مشاهده خدمات</Link>
+              <Link href="/services">ثبت اولین درخواست</Link>
             </Button>
           }
         />
-      ) : null}
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href="/dashboard/customer/requests">مشاهده درخواست‌ها و پیشنهادها</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/dashboard/customer/orders">پیگیری سفارش‌ها</Link>
+          </Button>
+        </div>
+      )}
     </>
   );
 }

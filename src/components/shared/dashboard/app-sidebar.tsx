@@ -12,6 +12,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -21,7 +22,7 @@ import { Logo } from "@/components/shared/logo";
 import { DASHBOARD_NAV } from "@/features/dashboard/nav";
 import { dashboardPathForRole, type AppRole } from "@/features/auth/rbac";
 
-export function AppSidebar({ role }: { role: AppRole }) {
+export function AppSidebar({ role, unreadCount }: { role: AppRole; unreadCount: number }) {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
   const home = dashboardPathForRole(role);
@@ -47,6 +48,11 @@ export function AppSidebar({ role }: { role: AppRole }) {
                         <span>{item.label}</span>
                       </Link>
                     </SidebarMenuButton>
+                    {item.badge === "unread" && unreadCount > 0 ? (
+                      <SidebarMenuBadge className="bg-primary text-primary-foreground">
+                        {unreadCount > 99 ? "۹۹+" : unreadCount.toLocaleString("fa-IR")}
+                      </SidebarMenuBadge>
+                    ) : null}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>

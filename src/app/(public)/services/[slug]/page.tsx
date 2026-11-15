@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { ChevronLeft, Info, Users } from "lucide-react";
+import { ChevronLeft, Send, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ServiceIcon } from "@/components/shared/service-icon";
 import { getPublicServiceBySlug } from "@/features/catalog/queries";
 import { formatNumber } from "@/lib/utils";
@@ -68,13 +68,22 @@ export default async function ServiceDetailPage({ params }: Props) {
         </Card>
       ) : null}
 
-      <Alert>
-        <Info />
-        <AlertTitle>ثبت درخواست آنلاین</AlertTitle>
-        <AlertDescription>
-          امکان ثبت درخواست و دریافت پیشنهاد قیمت برای این خدمت در فاز بعدی توسعه (منطق اصلی بازار) فعال می‌شود.
-        </AlertDescription>
-      </Alert>
+      <Card className="border-primary/30 bg-secondary/40">
+        <CardContent className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="space-y-1">
+            <h2 className="font-semibold">درخواست خود را ثبت کنید</h2>
+            <p className="text-sm text-muted-foreground">
+              فرم کوتاه را پر کنید تا متخصصان تأییدشده شهر شما پیشنهاد قیمت ارسال کنند.
+            </p>
+          </div>
+          <Button asChild size="lg">
+            <Link href={`/request/${service.slug}`}>
+              <Send />
+              ثبت درخواست
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

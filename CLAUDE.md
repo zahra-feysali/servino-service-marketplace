@@ -40,10 +40,12 @@ second auth framework, a real payment gateway, Cache Components / experimental N
 prisma/            schema.prisma, migrations/, seed.ts            prisma.config.ts (Prisma 7 config)
 src/proxy.ts       Next 16 "proxy" (formerly middleware): only checks a session token exists for /dashboard
 src/app/
-  (public)/        public site: /, /services, /services/[slug]   (header/footer layout)
+  (public)/        public site: /, /services, /services/[slug], /request/[slug] (customer request form)
   (auth)/          /login, /register
   dashboard/       /dashboard (role redirect) + customer/ provider/ admin/  (each layout = server role guard)
   api/auth/[...nextauth]/route.ts
+  api/requests/route.ts          POST multipart request submission (files) — Route Handler, not a Server Action
+  api/attachments/[id]/route.ts  GET private attachment (customer owner / matched provider / admin only)
 src/features/<domain>/
   schemas.ts       Zod schemas (shared client/server)
   service.ts       business logic + Prisma (transactions here)
@@ -52,7 +54,20 @@ src/features/<domain>/
   components/      feature-specific UI
 src/components/ui/      shadcn generated (do not hand-edit except lint fixes)
 src/components/shared/  layout shells, header/footer, sidebar, empty/stat/page-header components
-src/lib/           prisma.ts, auth.ts (Auth.js options), authz.ts (guards), errors.ts, utils.ts
+src/lib/           prisma.ts, auth.ts (Auth.js options), authz.ts (guards), errors.ts, utils.ts,
+                   db-locks.ts (SELECT … FOR UPDATE helper, isUuid), files.ts (magic-byte MIME detection),
+                   storage.ts (private local file storage under UPLOAD_DIR)
+Key domain modules (Phase 2):
+  features/forms/        definitions.ts (field types, admin field schema, snapshots), answers.ts (buildAnswersSchema — shared client/server)
+  features/catalog/      admin-service/admin-actions/admin-queries (categories, services, form builder)
+  features/requests/     service.ts (submit + cancel), queries.ts (scoped reads, attachment access), components/
+  features/matching/     rules.ts (pure eligibility), service.ts (match + atomic quota SQL)
+  features/offers/       rules.ts (pure selection/offer rules), service.ts (submit, withdraw, atomic selectOffer)
+  features/orders/       state-machine.ts (pure transitions + actors), service.ts (changeOrderStatus), components/
+  features/reviews/      rules.ts, service.ts (submitReview + recomputeProviderRating)
+  features/notifications/ service.ts (notify(tx, …) inside business transactions), actions.ts
+  features/marketplace/actions.ts   all workflow Server Actions (select/cancel/review/offer/withdraw/order status)
+  components/shared/action-button.tsx  generic confirm/note dialog button for bound Server Actions
 src/generated/prisma/   Prisma client output (gitignored, created by `prisma generate`/postinstall)
 tests/unit, tests/integration
 ```
@@ -77,8 +92,11 @@ tests/unit, tests/integration
   the JWT is trusted only for the user id. The proxy is UX only.
 - Never trust client-provided ids for ownership, prices, permissions or statuses — derive from session/DB.
 - Public registration can only create `CUSTOMER`/`PROVIDER` (schema rejects `ADMIN`).
-- Uploads (from Phase 2): validate MIME + size server-side, store under `UPLOAD_DIR` (outside `public/`),
-  serve only through an auth-checked route handler.
+- Uploads: validate declared MIME + size, then the real type from magic bytes (`lib/files.ts`); store under
+  `UPLOAD_DIR` (outside `public/`, git-ignored) with server-generated keys; serve only via `/api/attachments/[id]`
+  with `nosniff`, `private, no-store` and a sandbox CSP. Delete saved files if the DB transaction fails.
+- Route Handlers that mutate state check the `Origin` header (same-origin only) in addition to SameSite cookies.
+- Validate route/action ids with `isUuid` before querying; unauthorized lookups return "not found".
 - Never return `passwordHash` or other sensitive fields — always `select` explicit fields.
 - Never commit `.env` or secrets. `.env.example` documents variables.
 
@@ -93,6 +111,16 @@ tests/unit, tests/integration
   so editing a service form never corrupts historical requests.
 - Provider matching (Phase 2) must require ALL: APPROVED profile, ACTIVE user, offers the service, serves the
   request's city, ACTIVE non-expired subscription with remaining quota (`RequestMatch` records receipts).
+- Quota counters (`Subscription.requestsReceived/offersSubmitted`) are only changed by the conditional SQL in
+  `features/matching/service.ts` (re-checks status, window and `planSnapshot` quota; malformed snapshot fails closed).
+- Workflow invariants (keep them when extending):
+  - selection: lock request → `validateSelection` → guarded `updateMany(status PENDING→ACCEPTED)` → reject others →
+    request PROVIDER_SELECTED → create Order (price copied from offer) → histories → notifications, one transaction.
+  - offers: lock request, require `RequestMatch`, OPEN + not expired, one per provider (unique), consume offer quota.
+  - order status: lock order, ownership by role, `checkTransition` (actor + from-status + note rules), guarded update.
+  - request expiry is lazy (`expiresAt`); OPEN + past expiry is shown as EXPIRED and refuses offers/selection.
+  - providers see request address/contact only via the order (after selection); attachments only if matched.
+- Uploads: allowed MIME = jpeg/png/webp/pdf, verified by magic bytes; ≤ 5 MB/file; ≤ 5 files per field/general.
 - The init migration `prisma/migrations/20261115000000_init` was generated offline with
   `prisma migrate diff --from-empty`. It has **not yet been applied to a real database** — see IMPLEMENTATION_STATUS.md.
 
@@ -111,6 +139,7 @@ npm run db:deploy           # prisma migrate deploy (production)
 ```
 
 ## 8. Development phases & workflow
+Current state: **Phase 2 complete** (see IMPLEMENTATION_STATUS.md). Next: Phase 3 only when the user authorizes it.
 Phases: 1 Foundation → 2 Core marketplace logic → 3 Dashboards & business features → 4 UI/UX, testing, finalization.
 - Implement **only the phase the user explicitly requests**; at the end of each phase: review, fix, run lint /
   typecheck / tests / build, update `CLAUDE.md`, `README.md`, `IMPLEMENTATION_STATUS.md`, review `git status`,

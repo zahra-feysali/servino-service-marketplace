@@ -5,8 +5,21 @@ Customers submit service requests through dynamic forms, receive and compare off
 track the order. Providers manage their professional profile, services, service areas, subscription and
 orders. Administrators control users, catalog, requests, orders, subscriptions, payments and support.
 
-> **Status:** Phase 1 (Foundation) is complete. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
+> **Status:** Phase 2 (Core marketplace logic) is complete. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
 > for exactly what is implemented, verified, and blocked.
+
+## Core workflow (implemented)
+1. **Admin** defines categories, services and each service's dynamic request form (`/dashboard/admin/catalog`).
+2. **Customer** opens a service (`/services/<slug>`) → **Submit request** (`/request/<slug>`): city, address, dynamic
+   fields (9 field types incl. file upload) and attachments.
+3. The system **matches providers** that are approved, active, offer the service, serve the city and have an active
+   subscription with remaining quota; they get a notification and see the request in their inbox.
+4. **Providers** send one price offer each (price, estimated time, description, notes).
+5. **Customer** compares offers (sort by price / time / rating) and **selects one** — an atomic transaction creates
+   the order and rejects the other offers.
+6. **Order lifecycle:** provider confirms → starts → marks done → customer confirms completion (cancel/dispute with a reason).
+7. **Customer reviews** the completed order (1–5 stars, once); the provider's rating is recalculated.
+8. Every important event creates an in-app **notification**.
 
 ## Technology stack
 - **Next.js 16** (App Router, Server Components, Server Actions, Route Handlers), **React 19**, **TypeScript** (strict)
@@ -39,7 +52,7 @@ cp .env.example .env
 | `DATABASE_URL` | PostgreSQL connection string, e.g. `postgresql://servino:password@localhost:5432/servino?schema=public` |
 | `AUTH_SECRET` | Long random secret for Auth.js (`openssl rand -base64 32`) |
 | `NEXTAUTH_URL` | Public base URL, e.g. `http://localhost:3000` |
-| `UPLOAD_DIR` | Private directory for uploaded files (used from Phase 2), default `storage/uploads` |
+| `UPLOAD_DIR` | Private directory for uploaded request attachments (outside `public/`, git-ignored), default `storage/uploads`. Must be writable by the app; back it up together with the database |
 | `SEED_ADMIN_PASSWORD`, `SEED_DEMO_PASSWORD` | Optional overrides for demo passwords used by the seed |
 
 `.env` is git-ignored — never commit it.
@@ -72,7 +85,8 @@ npm run build && npm start   # production
 ```bash
 npm run lint
 npm run typecheck
-npm test             # unit tests; DB integration tests run only when DATABASE_URL is reachable
+npm test             # unit tests; DB integration tests (auth + full marketplace workflow incl.
+                     # concurrent offer selection) run only when DATABASE_URL is reachable and migrated
 npm run build
 ```
 
@@ -85,6 +99,9 @@ Created by `npm run db:seed`. Log in with the mobile number (or email) and passw
 | Customer | `09120000001` | `customer@servino.local` | `Demo12345` |
 | Provider (approved, active subscription) | `09120000002` | `provider@servino.local` | `Demo12345` |
 | Provider (pending verification) | `09120000003` | `pending@servino.local` | `Demo12345` |
+
+Try the full flow: log in as the customer → open «تعمیر یخچال و فریزر» → submit a request in **تهران** → log in as the
+approved provider → *درخواست‌های مرتبط* → send an offer → back as the customer → select the offer → follow the order.
 
 These passwords are for local development only; override them with `SEED_ADMIN_PASSWORD` / `SEED_DEMO_PASSWORD`.
 Never run the seed against production (it refuses to run with `NODE_ENV=production`).

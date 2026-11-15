@@ -1,91 +1,116 @@
 # Implementation Status
 
-_Last updated: 2026-11-15 — end of **Phase 1 (Foundation)**._
+_Last updated: 2026-11-15 — end of **Phase 2 (Core marketplace logic)**._
 
 ## Phases
 | Phase | Status |
 |---|---|
-| 1 — Project foundation | **Complete** (DB-dependent verification BLOCKED, see below) |
-| 2 — Core marketplace logic | Not started — waiting for authorization |
-| 3 — Dashboards & business features | Not started |
+| 1 — Project foundation | **Complete** (DB-dependent verification BLOCKED) |
+| 2 — Core marketplace logic | **Complete** (DB-dependent verification BLOCKED) |
+| 3 — Dashboards & business features | Not started — waiting for authorization |
 | 4 — UI/UX, testing, finalization | Not started |
 
-## Phase 1 — implemented
-- **Project setup:** Next.js 16.4.6 App Router, React 19.3, TypeScript 6 strict, Tailwind 4, ESLint, `src/` + `@/*` alias.
-  Removed the template's default `cacheComponents`/`partialPrefetching` flags (spec forbids Cache Components).
-- **UI foundation:** shadcn/ui (radix-nova, RTL), base components, teal/amber palette (light + dark tokens),
-  Vazirmatn variable font, `lang="fa" dir="rtl"`, Radix `DirectionProvider`, theme, TanStack Query, tooltip and toast providers.
-- **Prisma 7 + PostgreSQL:** `prisma.config.ts`, full schema covering **all spec models** + supporting models
-  (User, CustomerProfile, ProviderProfile, ProviderSkill, PortfolioItem, ProviderDocument, Province, City, Address,
-  Category (tree), Service, ServiceFormField, ProviderService, ServiceArea, ServiceRequest, RequestMatch,
-  RequestAttachment, RequestStatusHistory, ProviderOffer, Order, OrderStatusHistory, Review, Plan, Subscription,
-  Payment, Wallet, WalletTransaction, FeaturedProvider, Notification, SupportTicket, TicketMessage, SiteSetting),
-  status enums, indexes and unique constraints (one offer per provider per request, one order per request,
-  one review per order, etc.), restrictive deletes for financial/audit data, JSON answers + form snapshot.
-- **Initial migration SQL** generated offline: `prisma/migrations/20261115000000_init/migration.sql`
-  (`prisma migrate diff --from-empty --to-schema`). ⚠️ **Not applied to a database yet / not verified against PostgreSQL.**
-- **Auth.js:** Credentials provider (mobile or email + password), bcryptjs (12 rounds), JWT sessions, timing-safe
-  failure path, `lastLoginAt` tracking, suspended/inactive accounts cannot sign in.
-- **Registration:** customer or provider (never admin); one transaction creates User + profile (provider = `DRAFT`) +
-  Wallet; duplicate phone/email handling; automatic sign-in after registration.
-- **RBAC:** `src/proxy.ts` (token presence for `/dashboard/*`), server guards `requireRolePage`/`requireRole`/
-  `requireUser`/`assertOwnership` that reload role + status from the DB; open-redirect-safe callback handling.
-- **Layouts:** public header (desktop + mobile sheet) and footer; auth layout; dashboard shell with RTL sidebar
-  (collapsible, mobile sheet), user menu with sign-out; customer/provider/admin layouts each guarded server-side.
-- **Pages:** home (catalog from DB), `/services` (category tree), `/services/[slug]`, `/login`, `/register`,
-  `/dashboard` (role redirect), role overview pages with real DB statistics, account settings (profile edit +
-  password change) for every role, loading, error and not-found states.
-- **Seed:** idempotent `prisma/seed.ts` — provinces/cities, categories/subcategories, 7 services with dynamic
-  form fields covering all 9 field types, 3 plans, admin + customer + approved provider (services, areas, skills,
-  active subscription) + pending provider, site settings.
-- **Docs:** `CLAUDE.md`, `README.md`, this file, `.env.example`.
+## Phase 2 — implemented
+- **Category & service management (admin):** `/dashboard/admin/catalog` — create/edit/delete main categories and
+  subcategories (2 levels, parent validation), create/edit/activate/delete services. Deleting is refused when items are
+  in use (deactivate instead). Unique slug handling.
+- **Dynamic form builder (admin):** `/dashboard/admin/catalog/services/[id]` — add/edit/delete fields, all 9 types
+  (TEXT, TEXTAREA, NUMBER, SELECT, RADIO, CHECKBOX, DATE, BOOLEAN, FILE), label, technical name (unique per service),
+  required/optional, enable/disable, options (value/label), default value (type-checked), help text, placeholder,
+  ordering (up/down with stable renumbering), per-type config (min/max, max length, file types/size/count).
+  Every change bumps `Service.formVersion`.
+- **History-safe storage:** requests store validated `answers` (JSON) + an immutable `formSnapshot` of the active
+  fields + `formVersion`; request pages render from the snapshot, so later form edits never corrupt old requests.
+- **Customer request submission:** `/request/[slug]` dynamic form generated from the service's active fields; the
+  same Zod builder (`buildAnswersSchema`) validates on the client and on the server; city, address, preferred date,
+  description; unknown answer keys stripped. Submitted via `POST /api/requests` (multipart Route Handler).
+- **Attachments:** per FILE field and general attachments; declared type/size/count checks + real type detection by
+  magic bytes (JPEG/PNG/WebP/PDF), ≤ 5 MB each; stored privately under `UPLOAD_DIR` with generated keys (path-traversal
+  safe); files removed if the DB transaction fails; served only by `GET /api/attachments/[id]` to the owner, matched
+  providers and admins (404 otherwise).
+- **Provider matching:** in the submission transaction, providers are matched only if APPROVED, ACTIVE, offering the
+  service, serving the city and holding an ACTIVE, in-window subscription with remaining request quota. Quota is
+  consumed with a single conditional SQL UPDATE (race-safe, fail-closed on malformed snapshots). Matches are recorded
+  in `RequestMatch`; providers get a `NEW_REQUEST` notification.
+- **Provider access:** `/dashboard/provider/requests` inbox (new/viewed, open/all) and request detail — only for matched
+  providers; customer address/phone hidden until the provider is selected.
+- **Offer submission:** price, estimated duration (hour/day), description, notes. Server enforces approval, match,
+  OPEN + not expired, one offer per provider (DB unique), and offer quota (atomic). Providers can withdraw a pending
+  offer (`/dashboard/provider/offers`).
+- **Offer comparison & selection (customer):** `/dashboard/customer/requests/[id]` — offer cards with provider rating,
+  completed orders, experience; sort by price/time/rating; cheapest/fastest/best-rated highlights. **Atomic selection**
+  in one `$transaction`: row lock on the request (`SELECT … FOR UPDATE`), ownership + state + offer checks, guarded
+  PENDING→ACCEPTED update, other pending offers REJECTED, request → PROVIDER_SELECTED, order created with the price
+  copied from the stored offer, request + order status history, notifications to customer, selected and rejected
+  providers. `Order.requestId`/`offerId` UNIQUE as a DB backstop against double acceptance.
+- **Request cancellation:** customer can cancel an OPEN request with a reason (pending offers rejected, providers notified).
+- **Order status management:** pure state machine (`features/orders/state-machine.ts`) with per-transition actors and
+  mandatory reasons for cancel/dispute; service locks the order row, checks ownership by role and the current status,
+  sets timestamps, writes history, updates the request (COMPLETED/CANCELLED) and provider counters, notifies the other
+  party. UI for customer and provider order lists/details with role-specific action buttons and timeline.
+- **Reviews & ratings:** one review per completed order by its customer (DB unique + rules), 1–5 stars + comment,
+  provider `ratingAverage`/`ratingCount` recomputed from PUBLISHED reviews in the same transaction;
+  `/dashboard/customer/reviews`.
+- **Notifications:** stored in DB with read/unread; created inside the business transactions (new request, new offer,
+  offer accepted/rejected, order created, status changes, review received); notifications page for each role,
+  mark one/all as read, unread badge in sidebar and header bell.
+- **Navigation:** sidebars now list all implemented sections; service pages link to the request form.
 
-## Checks (Phase 1)
+## Phase 1 — implemented (summary)
+Next.js 16 / TS strict / Tailwind 4 / shadcn (RTL) / Vazirmatn setup; full Prisma schema for all spec models and the
+offline-generated init migration; Auth.js credentials (bcrypt, JWT); customer/provider registration; server-side RBAC
+guards; public, auth and dashboard layouts; account settings; idempotent seed; docs.
+
+## Checks (Phase 2)
 | Check | Result | Notes |
 |---|---|---|
 | `npm run lint` | **PASSED** | 0 errors, 0 warnings |
 | `npm run typecheck` | **PASSED** | |
-| `npx prisma validate` | **PASSED** | with a placeholder `DATABASE_URL` |
-| `npx prisma generate` | **PASSED** | |
-| Migration SQL generation (`migrate diff`) | **PASSED** | SQL file produced; not applied |
-| Unit tests (`npm test`) | **PASSED** | 33 tests: auth schemas, phone normalization, RBAC/redirect safety, nav scoping, errors, bcrypt |
-| Integration tests (`tests/integration/auth.int.test.ts`, 5 tests) | **BLOCKED** | need PostgreSQL; auto-skipped |
-| `npm run build` | **PASSED** | all routes compiled, no warnings |
-| Production smoke test (`next start`, no DB) | **PASSED** (partial) | `/login`, `/register` 200 in RTL; `/dashboard*` → 307 to `/login`; Auth.js endpoints 200; unknown route 404; client-side validation messages shown in Persian. `/` and `/services` return 500 without a DB (expected; error boundary) |
-| `prisma migrate dev` | **BLOCKED** | PostgreSQL not installed on the dev machine |
-| `prisma db seed` | **BLOCKED** | PostgreSQL not installed |
-| End-to-end login/registration with real DB | **BLOCKED** | PostgreSQL not installed |
+| `npx prisma validate` / `generate` | **PASSED** | no schema changes were needed in Phase 2 |
+| Unit tests (`npm test`) | **PASSED** | 106 tests in 9 files — dynamic form schema builder & admin field validation, file rules, matching rules & quotas, order state machine, offer selection rules, offer comparison, reviews/rating, magic-byte detection, private storage & path traversal, plus Phase 1 auth/RBAC tests |
+| Integration: `tests/integration/marketplace.int.test.ts` (10 tests) | **BLOCKED** | full workflow incl. matching, quotas, duplicate offers, **concurrent selection (exactly one order)**, transitions/ownership, single review & rating, cancellation — needs PostgreSQL; auto-skipped |
+| Integration: `tests/integration/auth.int.test.ts` (5 tests) | **BLOCKED** | needs PostgreSQL |
+| `npm run build` | **PASSED** | 32 routes, no warnings |
+| Production smoke test (`next start`, no DB) | **PASSED** (partial) | `/request/<slug>` and new dashboard routes redirect anonymous users to `/login`; `GET /api/attachments/<id>` → 401 anonymous; `POST /api/requests` → 401 anonymous, 403 cross-origin |
+| `prisma migrate dev` / `db seed` | **BLOCKED** | PostgreSQL not installed |
+| Manual end-to-end UI walkthrough with data | **BLOCKED** | needs PostgreSQL + seed |
 
 ## Blocked by missing environment dependencies
-PostgreSQL is **not installed** on the development machine (no `psql`, no service, no Docker). Blocked until it is available:
-1. Applying the init migration (`npm run db:migrate`) — this will also confirm the offline-generated SQL.
-2. Seeding (`npm run db:seed`).
-3. DB integration tests (`npm test` will run them automatically once `DATABASE_URL` is reachable).
-4. Manual end-to-end check of register → login → role dashboards → settings, and public catalog pages.
+PostgreSQL is still **not installed** on the development machine. Blocked until available:
+1. `npm run db:migrate` (applies and verifies the offline-generated init migration).
+2. `npm run db:seed`.
+3. 15 integration tests (`npm test` runs them automatically once `DATABASE_URL` is reachable).
+4. Manual walkthrough: admin form builder → customer request (with files) → provider offer → selection → order → review.
+   The raw SQL in `features/matching/service.ts` (quota UPDATEs) and `lib/db-locks.ts` (row locks) has not yet been
+   executed against PostgreSQL.
 
 ## Required manual setup
-1. Install PostgreSQL 16+, create the database/user (see README → Database setup).
-2. `cp .env.example .env`, then set `DATABASE_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`.
+1. Install PostgreSQL 16+, create database/user (README → Database setup).
+2. `cp .env.example .env`; set `DATABASE_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`, optionally `UPLOAD_DIR`.
 3. `npm run db:migrate && npm run db:seed && npm test`.
 
 ## Known issues / limitations
-- Public catalog pages show the error state when the database is unreachable (by design; no mock data).
-- Provider profile completion and "submit for verification" are not implemented yet (Phase 3, provider dashboard);
-  the provider dashboard shows the current verification state honestly.
-- Service detail pages state that online request submission arrives in Phase 2 (no dead "request" button).
-- `UPLOAD_DIR` is documented but first used in Phase 2 (attachments).
+- Request expiry is evaluated lazily (OPEN past `expiresAt` is displayed as EXPIRED and rejects offers/selection);
+  there is no background job that writes `EXPIRED` to the database.
+- Withdrawn offers do not refund the consumed offer quota (documented behaviour).
+- Quotas apply to the whole subscription period (no monthly reset inside longer plans).
+- Admin views of requests/offers/orders, admin dispute resolution UI, review moderation UI, provider profile
+  completion (services, areas, documents, submit for verification), subscriptions/payments UIs, address book and
+  support tickets belong to **Phase 3**. Service functions already support admin order transitions and rating
+  recomputation for later use.
+- Date inputs use the browser's Gregorian date picker; displayed dates use the Persian calendar (polish in Phase 4).
+- Customer/provider dashboards show the counterpart's phone number only inside an order (not cancelled).
 
 ## Important technical decisions
-- `next-auth@4.24.15` (stable) instead of v5 beta; Prisma 7.10.1 (stable) instead of the 8.0 RC tagged `latest`;
-  TypeScript 6.0.3 (typescript-eslint compatibility); Vitest 3.2.7 (npm install bug with Vitest 4).
-- The proxy does **not** make role decisions (stale-JWT redirect loops); pages/actions read role + status from the DB.
-- Double acceptance is prevented at the DB level by `Order.requestId @unique` and `Order.offerId @unique`
-  (plus row locking in Phase 2) instead of a partial unique index (Prisma's partial indexes are preview-only).
-- Money stored as integer Toman.
-- `RequestMatch` (supporting model) records which providers received a request — used for inboxes and quotas.
+- Request submission uses a **Route Handler** (`POST /api/requests`) because Server Actions are limited to 1 MB unless
+  the `experimental.serverActions.bodySizeLimit` option is enabled (experimental options are not allowed).
+- Concurrency: pessimistic row locks (`SELECT … FOR UPDATE`) on the request (offers, selection, cancellation) and the
+  order (status changes, reviews) + guarded conditional updates + DB unique constraints as backstops.
+- Quota enforcement in SQL (conditional `UPDATE … WHERE requestsReceived < (planSnapshot->>'max…')::int`), so concurrent
+  requests can never exceed a plan's quota.
+- Phase 1 decisions still apply (next-auth v4 stable, Prisma 7.10.1, TS 6.0.3, Vitest 3.2.7, no Cache Components).
 
-## Next steps (Phase 2 — awaiting authorization)
-Admin category/service CRUD and dynamic form builder; dynamic request form + shared Zod builder; request
-submission with attachments; provider matching; provider request inbox; offer submission; offer comparison;
-atomic offer selection with row locking; order status machine + history; reviews and rating aggregation;
-notification system; tests for all core logic.
+## Next steps (Phase 3 — awaiting authorization)
+Complete customer/provider/admin dashboards (incl. provider profile, services, areas, portfolio, documents and
+verification flow; admin users/providers/requests/orders/reviews management), subscription plans & lifecycle with
+quotas, simulated payments, wallet & transactions, featured providers, support tickets, reports & charts, and tests.

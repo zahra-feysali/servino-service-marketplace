@@ -15,12 +15,13 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import type { ServiceIconName } from "@/features/catalog/icons";
 
 /**
  * Whitelisted Lucide icons that admins can reference by name on categories/services.
  * Unknown names fall back to a generic icon (no dynamic imports from user input).
  */
-export const SERVICE_ICONS: Record<string, LucideIcon> = {
+export const SERVICE_ICONS: Record<ServiceIconName, LucideIcon> = {
   bath: Bath,
   brush: Brush,
   car: Car,
@@ -38,6 +39,6 @@ export const SERVICE_ICONS: Record<string, LucideIcon> = {
 };
 
 export function ServiceIcon({ name, className }: { name?: string | null; className?: string }) {
-  const Icon = (name && SERVICE_ICONS[name]) || Wrench;
+  const Icon = (name && SERVICE_ICONS[name as ServiceIconName]) || Wrench;
   return <Icon className={className} aria-hidden />;
 }

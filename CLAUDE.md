@@ -1,0 +1,127 @@
+@AGENTS.md
+
+# CLAUDE.md — Servino Service Marketplace (permanent project instructions)
+
+Read this file, `IMPLEMENTATION_STATUS.md` and `README.md` before any work. The master
+specification is the source of truth; this file condenses its permanent rules. **Do not change the
+architecture, stack, scope or business rules below without explicit approval from the user.**
+
+## 1. Product
+Persian-first (RTL) full-stack marketplace like Achareh: customers submit service requests with
+dynamic forms → matched, approved, subscribed providers send offers → customer atomically selects
+one → order lifecycle → review. Admin controls everything. Roles: `CUSTOMER`, `PROVIDER`, `ADMIN`.
+
+## 2. Approved stack (mandatory — do not replace)
+| Area | Choice (pinned version) |
+|---|---|
+| Framework | Next.js **16.4.6** App Router, React **19.3.1**, TypeScript **6.0.3** strict |
+| UI | Tailwind CSS 4, shadcn/ui (style `radix-nova`, Radix primitives, `rtl: true`), Lucide, Sonner |
+| Forms/validation | React Hook Form + Zod 4 (`@hookform/resolvers`) — same schemas on client and server |
+| Client server-state | TanStack Query (only where needed); charts: Recharts |
+| Backend | Server Actions + Route Handlers inside this same Next.js app (no Express/Nest) |
+| DB | PostgreSQL + Prisma **7.10.1** (`prisma-client` generator, `@prisma/adapter-pg`), Prisma Migrate |
+| Auth | Auth.js — `next-auth@4.24.15` (latest **stable**; v5 is beta-only), Credentials provider, bcryptjs, JWT sessions, **no Prisma adapter** |
+| Font / locale | Vazirmatn (local variable font from `vazirmatn` package), `lang="fa" dir="rtl"` |
+| Tests | Vitest 3 (unit + DB integration tests that auto-skip without PostgreSQL) |
+
+**Never introduce:** SQLite, MongoDB, in-memory/mock DB, a separate backend, Zustand, Better Auth or a
+second auth framework, a real payment gateway, Cache Components / experimental Next features
+(`cacheComponents`, `partialPrefetching`, `unstable_*` APIs), unnecessary dependencies, out-of-scope features.
+
+### Version decisions
+- `next-auth` v5 ("Auth.js v5") has only `beta` releases; spec requires stable → **v4.24.15** (supports Next 16).
+- `prisma@latest` on npm is an 8.0 **RC**; we use the stable **7.10.1** line.
+- TypeScript 7 is the native port and is outside typescript-eslint's supported range (<6.1) → **6.0.3**.
+- Vitest 4 hits an npm 10 arborist bug (`edgesOut`) on install → stable **3.2.7**.
+- `create-next-app@16.4` enables `cacheComponents` by default — it was **removed** from `next.config.ts`.
+
+## 3. Directory structure (feature/domain-based)
+```
+prisma/            schema.prisma, migrations/, seed.ts            prisma.config.ts (Prisma 7 config)
+src/proxy.ts       Next 16 "proxy" (formerly middleware): only checks a session token exists for /dashboard
+src/app/
+  (public)/        public site: /, /services, /services/[slug]   (header/footer layout)
+  (auth)/          /login, /register
+  dashboard/       /dashboard (role redirect) + customer/ provider/ admin/  (each layout = server role guard)
+  api/auth/[...nextauth]/route.ts
+src/features/<domain>/
+  schemas.ts       Zod schemas (shared client/server)
+  service.ts       business logic + Prisma (transactions here)
+  queries.ts       read-only data access for pages
+  actions.ts       "use server" — thin: auth → role → ownership → Zod → service → ActionResult
+  components/      feature-specific UI
+src/components/ui/      shadcn generated (do not hand-edit except lint fixes)
+src/components/shared/  layout shells, header/footer, sidebar, empty/stat/page-header components
+src/lib/           prisma.ts, auth.ts (Auth.js options), authz.ts (guards), errors.ts, utils.ts
+src/generated/prisma/   Prisma client output (gitignored, created by `prisma generate`/postinstall)
+tests/unit, tests/integration
+```
+
+## 4. Coding conventions
+- Server Components by default; `"use client"` only for interactivity (forms, menus, charts).
+- No business logic or Prisma calls in components. Pages call `queries.ts`; mutations go through `actions.ts`.
+- Server Actions return `ActionResult` (`src/lib/errors.ts`) and never throw raw errors to the client.
+  Throw `AppError`/`ForbiddenError`/`NotFoundError` inside services; wrap with `toActionError`.
+- User-facing text is Persian. Code, identifiers and comments are English.
+- Money = integer **Toman** (`Int`). Format with `formatPrice`; dates with `formatDate` (Persian calendar).
+- Use logical CSS properties (`ms-`, `me-`, `ps-`, `pe-`, `text-start`) — never `ml-/mr-/left/right` for layout.
+- Phone numbers/emails/passwords inputs use `dir="ltr"`.
+- Avoid `any`; use generated Prisma types; keep Zod schemas reusable.
+- Only link to routes that exist (no dead links/buttons). Update `src/features/dashboard/nav.ts` when adding sections.
+- Dynamic DB-backed public pages call `await connection()` (stable API) so they are rendered at request time.
+
+## 5. Security rules (mandatory)
+- Passwords: bcryptjs (12 rounds). Never store/log plain passwords. Login failure messages are generic.
+- **All authorization is server-side.** Use `requireRolePage()` in pages/layouts and `requireUser()/requireRole()`
+  + `assertOwnership()` in actions/route handlers (`src/lib/authz.ts`). These re-read role/status from the DB;
+  the JWT is trusted only for the user id. The proxy is UX only.
+- Never trust client-provided ids for ownership, prices, permissions or statuses — derive from session/DB.
+- Public registration can only create `CUSTOMER`/`PROVIDER` (schema rejects `ADMIN`).
+- Uploads (from Phase 2): validate MIME + size server-side, store under `UPLOAD_DIR` (outside `public/`),
+  serve only through an auth-checked route handler.
+- Never return `passwordHash` or other sensitive fields — always `select` explicit fields.
+- Never commit `.env` or secrets. `.env.example` documents variables.
+
+## 6. Database & Prisma rules
+- PostgreSQL only. UUID PKs (`@db.Uuid`). Enums for every status. Explicit `select` in queries.
+- Schema changes: edit `prisma/schema.prisma` → `npx prisma migrate dev --name <change>` (dev) /
+  `npx prisma migrate deploy` (prod). **Never use `prisma db push`** as the workflow.
+- Multi-step writes use `prisma.$transaction`. Critical selection flow (Phase 2) must lock the request row
+  (`SELECT … FOR UPDATE`) and rely on `Order.requestId @unique` as the DB-level guard against double acceptance.
+- Orders, payments, wallet transactions, status history: `onDelete: Restrict` (no cascading deletes of records).
+- Dynamic forms: requests store `answers` (JSON) + `formSnapshot` (JSON copy of active fields) + `formVersion`,
+  so editing a service form never corrupts historical requests.
+- Provider matching (Phase 2) must require ALL: APPROVED profile, ACTIVE user, offers the service, serves the
+  request's city, ACTIVE non-expired subscription with remaining quota (`RequestMatch` records receipts).
+- The init migration `prisma/migrations/20261115000000_init` was generated offline with
+  `prisma migrate diff --from-empty`. It has **not yet been applied to a real database** — see IMPLEMENTATION_STATUS.md.
+
+## 7. Commands
+```bash
+npm install                 # also runs prisma generate (postinstall)
+npm run dev                 # dev server (Turbopack)
+npm run lint                # ESLint
+npm run typecheck           # tsc --noEmit
+npm test                    # Vitest (integration tests auto-skip without PostgreSQL)
+npm run build               # production build
+npm run db:validate         # prisma validate (needs DATABASE_URL set, not a live DB)
+npm run db:migrate          # prisma migrate dev   (needs PostgreSQL)
+npm run db:seed             # prisma db seed       (needs PostgreSQL)
+npm run db:deploy           # prisma migrate deploy (production)
+```
+
+## 8. Development phases & workflow
+Phases: 1 Foundation → 2 Core marketplace logic → 3 Dashboards & business features → 4 UI/UX, testing, finalization.
+- Implement **only the phase the user explicitly requests**; at the end of each phase: review, fix, run lint /
+  typecheck / tests / build, update `CLAUDE.md`, `README.md`, `IMPLEMENTATION_STATUS.md`, review `git status`,
+  commit with a meaningful message, push to `origin main`, report, then **stop and wait** for authorization.
+- Report every check as PASSED / FAILED / BLOCKED / NOT RUN. Never claim an unexecuted check passed.
+- If PostgreSQL is unavailable: keep building everything else; mark DB-dependent steps BLOCKED.
+- Git remote: `https://github.com/zahra-feysali/servino-service-marketplace` (branch `main`). One repository for all phases.
+
+## 9. Continuing in a new session
+1. Read `IMPLEMENTATION_STATUS.md` (current phase, blocked items, next steps).
+2. Check `git log --oneline` and `git status`.
+3. Check whether PostgreSQL is now available (`DATABASE_URL` in `.env`); if so, run `npm run db:migrate`,
+   `npm run db:seed` and `npm test` to clear BLOCKED items before new work.
+4. Follow sections 3–6 for any new code.

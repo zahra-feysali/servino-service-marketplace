@@ -1,0 +1,813 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Servino — Service Marketplace — Prisma schema (PostgreSQL only)
+//
+// Conventions
+// - UUID primary keys (`@default(uuid())`, stored as native `uuid`).
+// - Money is stored as Int in TOMAN (no fractions). Never trust client prices.
+// - Human-readable sequential codes (`code`) exist for requests/orders/payments.
+// - Orders, payments, wallet records and status history use `onDelete: Restrict`
+//   so financial/audit data can never be cascaded away.
+// - Dynamic request answers are stored as JSON together with an immutable
+//   snapshot of the form definition (`formSnapshot`) taken at submission time.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────── Enums ───────────────────────────────────────
+
+enum Role {
+  CUSTOMER
+  PROVIDER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ProviderVerificationStatus {
+  DRAFT // profile still being completed
+  PENDING // submitted for admin review
+  APPROVED
+  REJECTED
+}
+
+enum ProviderDocumentType {
+  NATIONAL_ID
+  CERTIFICATE
+  LICENSE
+  OTHER
+}
+
+enum DocumentReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum FormFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  SELECT
+  RADIO
+  CHECKBOX
+  DATE
+  BOOLEAN
+  FILE
+}
+
+enum RequestStatus {
+  OPEN // accepting offers
+  PROVIDER_SELECTED // an offer was accepted, order created
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum DurationUnit {
+  HOUR
+  DAY
+}
+
+enum OrderStatus {
+  PENDING_PROVIDER_CONFIRMATION
+  ACCEPTED
+  IN_PROGRESS
+  PROVIDER_COMPLETED
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum PaymentPurpose {
+  SUBSCRIPTION
+  FEATURED_PLACEMENT
+  WALLET_TOPUP
+}
+
+enum PaymentGateway {
+  SIMULATED
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum WalletTransactionReason {
+  TOP_UP
+  SUBSCRIPTION_PURCHASE
+  FEATURED_PURCHASE
+  ORDER_EARNING
+  REFUND
+  ADJUSTMENT
+}
+
+enum FeaturedPlacement {
+  HOME
+  CATEGORY
+  SEARCH
+}
+
+enum ReviewStatus {
+  PUBLISHED
+  HIDDEN
+}
+
+enum NotificationType {
+  NEW_REQUEST
+  NEW_OFFER
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+  ORDER_CREATED
+  ORDER_STATUS_CHANGED
+  REVIEW_RECEIVED
+  SUBSCRIPTION_ACTIVATED
+  SUBSCRIPTION_EXPIRED
+  PROVIDER_APPROVED
+  PROVIDER_REJECTED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  TICKET_REPLY
+  SYSTEM
+}
+
+enum TicketStatus {
+  OPEN
+  ANSWERED
+  CUSTOMER_REPLY
+  CLOSED
+}
+
+enum TicketCategory {
+  GENERAL
+  ACCOUNT
+  ORDER
+  PAYMENT
+  TECHNICAL
+  OTHER
+}
+
+// ─────────────────────────────── Users ───────────────────────────────────────
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  fullName     String     @db.VarChar(120)
+  phone        String     @unique @db.VarChar(20)
+  email        String?    @unique @db.VarChar(191)
+  passwordHash String
+  role         Role       @default(CUSTOMER)
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  customerProfile  CustomerProfile?
+  providerProfile  ProviderProfile?
+  addresses        Address[]
+  wallet           Wallet?
+  requests         ServiceRequest[]       @relation("RequestCustomer")
+  customerOrders   Order[]                @relation("OrderCustomer")
+  reviews          Review[]               @relation("ReviewCustomer")
+  subscriptions    Subscription[]
+  payments         Payment[]
+  notifications    Notification[]
+  tickets          SupportTicket[]        @relation("TicketOwner")
+  ticketMessages   TicketMessage[]
+  attachments      RequestAttachment[]
+  requestHistory   RequestStatusHistory[]
+  orderHistory     OrderStatusHistory[]
+  reviewedProfiles ProviderProfile[]      @relation("ProviderReviewer")
+  cancelledOrders  Order[]                @relation("OrderCanceller")
+  featuredCreated  FeaturedProvider[]     @relation("FeaturedCreator")
+
+  @@index([role, status])
+  @@index([createdAt])
+}
+
+model CustomerProfile {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProviderProfile {
+  id                   String                     @id @default(uuid()) @db.Uuid
+  userId               String                     @unique @db.Uuid
+  user                 User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName          String                     @db.VarChar(120)
+  bio                  String?                    @db.Text
+  yearsOfExperience    Int                        @default(0)
+  avatarKey            String?
+  verificationStatus   ProviderVerificationStatus @default(DRAFT)
+  submittedAt          DateTime?
+  reviewedAt           DateTime?
+  reviewedById         String?                    @db.Uuid
+  reviewedBy           User?                      @relation("ProviderReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  rejectionReason      String?                    @db.Text
+  // Denormalized aggregates — recomputed inside the same transaction as the change.
+  ratingAverage        Float                      @default(0)
+  ratingCount          Int                        @default(0)
+  completedOrdersCount Int                        @default(0)
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  services  ProviderService[]
+  areas     ServiceArea[]
+  skills    ProviderSkill[]
+  portfolio PortfolioItem[]
+  documents ProviderDocument[]
+  offers    ProviderOffer[]
+  orders    Order[]            @relation("OrderProvider")
+  reviews   Review[]           @relation("ReviewProvider")
+  matches   RequestMatch[]
+  featured  FeaturedProvider[]
+
+  @@index([verificationStatus])
+  @@index([ratingAverage])
+}
+
+model ProviderSkill {
+  id         String          @id @default(uuid()) @db.Uuid
+  providerId String          @db.Uuid
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  name       String          @db.VarChar(80)
+  createdAt  DateTime        @default(now())
+
+  @@unique([providerId, name])
+}
+
+model PortfolioItem {
+  id          String          @id @default(uuid()) @db.Uuid
+  providerId  String          @db.Uuid
+  provider    ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  title       String          @db.VarChar(150)
+  description String?         @db.Text
+  imageKey    String?
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+
+  @@index([providerId, sortOrder])
+}
+
+/// Certificates and verification documents (private files, served through an auth-checked route).
+model ProviderDocument {
+  id         String               @id @default(uuid()) @db.Uuid
+  providerId String               @db.Uuid
+  provider   ProviderProfile      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  type       ProviderDocumentType
+  title      String               @db.VarChar(150)
+  storageKey String               @unique
+  fileName   String
+  mimeType   String               @db.VarChar(100)
+  size       Int
+  status     DocumentReviewStatus @default(PENDING)
+  reviewNote String?              @db.Text
+  createdAt  DateTime             @default(now())
+
+  @@index([providerId, type])
+}
+
+// ─────────────────────────────── Locations ───────────────────────────────────
+
+model Province {
+  id        String  @id @default(uuid()) @db.Uuid
+  name      String  @unique @db.VarChar(80)
+  slug      String  @unique @db.VarChar(80)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+  cities    City[]
+}
+
+model City {
+  id           String           @id @default(uuid()) @db.Uuid
+  provinceId   String           @db.Uuid
+  province     Province         @relation(fields: [provinceId], references: [id], onDelete: Restrict)
+  name         String           @db.VarChar(80)
+  slug         String           @unique @db.VarChar(80)
+  isActive     Boolean          @default(true)
+  sortOrder    Int              @default(0)
+  serviceAreas ServiceArea[]
+  addresses    Address[]
+  requests     ServiceRequest[]
+
+  @@unique([provinceId, name])
+}
+
+model Address {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String   @db.VarChar(60)
+  cityId     String   @db.Uuid
+  city       City     @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  line       String   @db.VarChar(300)
+  postalCode String?  @db.VarChar(20)
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  requests ServiceRequest[]
+
+  @@index([userId])
+}
+
+// ─────────────────────────────── Catalog ─────────────────────────────────────
+
+/// Main categories have parentId = null; subcategories reference their parent.
+model Category {
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String     @db.VarChar(100)
+  slug        String     @unique @db.VarChar(100)
+  description String?    @db.Text
+  icon        String?    @db.VarChar(60) // lucide icon name
+  parentId    String?    @db.Uuid
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Category[] @relation("CategoryTree")
+  isActive    Boolean    @default(true)
+  sortOrder   Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  services Service[]
+
+  @@index([parentId, sortOrder])
+}
+
+model Service {
+  id               String   @id @default(uuid()) @db.Uuid
+  categoryId       String   @db.Uuid
+  category         Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name             String   @db.VarChar(120)
+  slug             String   @unique @db.VarChar(120)
+  shortDescription String?  @db.VarChar(300)
+  description      String?  @db.Text
+  icon             String?  @db.VarChar(60)
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  /// Incremented whenever the form definition changes; copied onto requests.
+  formVersion      Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  formFields       ServiceFormField[]
+  providerServices ProviderService[]
+  requests         ServiceRequest[]
+  orders           Order[]
+
+  @@index([categoryId, isActive, sortOrder])
+}
+
+model ServiceFormField {
+  id           String        @id @default(uuid()) @db.Uuid
+  serviceId    String        @db.Uuid
+  service      Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  label        String        @db.VarChar(150)
+  /// Technical key used inside ServiceRequest.answers. Unique per service.
+  name         String        @db.VarChar(64)
+  type         FormFieldType
+  isRequired   Boolean       @default(false)
+  isActive     Boolean       @default(true)
+  /// For SELECT / RADIO / CHECKBOX: [{ "value": "...", "label": "..." }]
+  options      Json?
+  defaultValue Json?
+  helpText     String?       @db.VarChar(300)
+  placeholder  String?       @db.VarChar(150)
+  /// Extra constraints, e.g. { min, max, maxLength, accept: ["image/png"], maxSizeMb }
+  config       Json?
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([serviceId, name])
+  @@index([serviceId, isActive, sortOrder])
+}
+
+model ProviderService {
+  id         String          @id @default(uuid()) @db.Uuid
+  providerId String          @db.Uuid
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  serviceId  String          @db.Uuid
+  service    Service         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  createdAt  DateTime        @default(now())
+
+  @@unique([providerId, serviceId])
+  @@index([serviceId])
+}
+
+/// A city in which a provider accepts work.
+model ServiceArea {
+  id         String          @id @default(uuid()) @db.Uuid
+  providerId String          @db.Uuid
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  cityId     String          @db.Uuid
+  city       City            @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  createdAt  DateTime        @default(now())
+
+  @@unique([providerId, cityId])
+  @@index([cityId])
+}
+
+// ─────────────────────────────── Requests & offers ───────────────────────────
+
+model ServiceRequest {
+  id            String        @id @default(uuid()) @db.Uuid
+  code          Int           @unique @default(autoincrement())
+  customerId    String        @db.Uuid
+  customer      User          @relation("RequestCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  serviceId     String        @db.Uuid
+  service       Service       @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  cityId        String        @db.Uuid
+  city          City          @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  addressId     String?       @db.Uuid
+  address       Address?      @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  /// Address text copied at submission time so history survives address edits.
+  addressText   String?       @db.VarChar(300)
+  description   String?       @db.Text
+  preferredDate DateTime?
+  /// Validated dynamic-form answers keyed by ServiceFormField.name.
+  answers       Json
+  /// Immutable copy of the active form fields at submission time.
+  formSnapshot  Json
+  formVersion   Int
+  status        RequestStatus @default(OPEN)
+  offerCount    Int           @default(0)
+  isFlagged     Boolean       @default(false)
+  flagReason    String?       @db.Text
+  expiresAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  attachments RequestAttachment[]
+  offers      ProviderOffer[]
+  history     RequestStatusHistory[]
+  matches     RequestMatch[]
+  order       Order?
+
+  @@index([customerId, status])
+  @@index([serviceId, cityId, status])
+  @@index([status, createdAt])
+}
+
+/// Records that a provider was matched to (received) a request.
+/// Used for provider inboxes and for subscription request quotas.
+model RequestMatch {
+  id             String          @id @default(uuid()) @db.Uuid
+  requestId      String          @db.Uuid
+  request        ServiceRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  providerId     String          @db.Uuid
+  provider       ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  subscriptionId String?         @db.Uuid
+  subscription   Subscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  viewedAt       DateTime?
+  createdAt      DateTime        @default(now())
+
+  @@unique([requestId, providerId])
+  @@index([providerId, createdAt])
+}
+
+model RequestAttachment {
+  id         String         @id @default(uuid()) @db.Uuid
+  requestId  String         @db.Uuid
+  request    ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  uploaderId String         @db.Uuid
+  uploader   User           @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  /// Set when the file belongs to a FILE-type dynamic form field.
+  fieldName  String?        @db.VarChar(64)
+  fileName   String
+  storageKey String         @unique
+  mimeType   String         @db.VarChar(100)
+  size       Int
+  createdAt  DateTime       @default(now())
+
+  @@index([requestId])
+}
+
+model RequestStatusHistory {
+  id          String         @id @default(uuid()) @db.Uuid
+  requestId   String         @db.Uuid
+  request     ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  fromStatus  RequestStatus?
+  toStatus    RequestStatus
+  changedById String?        @db.Uuid
+  changedBy   User?          @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  note        String?        @db.Text
+  createdAt   DateTime       @default(now())
+
+  @@index([requestId, createdAt])
+}
+
+model ProviderOffer {
+  id                    String          @id @default(uuid()) @db.Uuid
+  requestId             String          @db.Uuid
+  request               ServiceRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  providerId            String          @db.Uuid
+  provider              ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  price                 Int
+  estimatedDuration     Int
+  estimatedDurationUnit DurationUnit    @default(HOUR)
+  description           String          @db.Text
+  notes                 String?         @db.Text
+  status                OfferStatus     @default(PENDING)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  order Order?
+
+  /// One offer per provider per request.
+  @@unique([requestId, providerId])
+  @@index([requestId, status])
+  @@index([providerId, status])
+}
+
+// ─────────────────────────────── Orders ──────────────────────────────────────
+
+model Order {
+  id                  String          @id @default(uuid()) @db.Uuid
+  code                Int             @unique @default(autoincrement())
+  /// Unique: a request can produce at most one order (DB-level guard against double acceptance).
+  requestId           String          @unique @db.Uuid
+  request             ServiceRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  offerId             String          @unique @db.Uuid
+  offer               ProviderOffer   @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  customerId          String          @db.Uuid
+  customer            User            @relation("OrderCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  providerId          String          @db.Uuid
+  provider            ProviderProfile @relation("OrderProvider", fields: [providerId], references: [id], onDelete: Restrict)
+  serviceId           String          @db.Uuid
+  service             Service         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  /// Copied from the accepted offer on the server — never from client input.
+  price               Int
+  status              OrderStatus     @default(PENDING_PROVIDER_CONFIRMATION)
+  providerConfirmedAt DateTime?
+  startedAt           DateTime?
+  providerCompletedAt DateTime?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  cancelledById       String?         @db.Uuid
+  cancelledBy         User?           @relation("OrderCanceller", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelReason        String?         @db.Text
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  history            OrderStatusHistory[]
+  review             Review?
+  walletTransactions WalletTransaction[]
+  tickets            SupportTicket[]
+
+  @@index([customerId, status])
+  @@index([providerId, status])
+  @@index([status, createdAt])
+}
+
+model OrderStatusHistory {
+  id          String       @id @default(uuid()) @db.Uuid
+  orderId     String       @db.Uuid
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  changedById String?      @db.Uuid
+  changedBy   User?        @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  note        String?      @db.Text
+  createdAt   DateTime     @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model Review {
+  id         String          @id @default(uuid()) @db.Uuid
+  /// One review per order.
+  orderId    String          @unique @db.Uuid
+  order      Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customerId String          @db.Uuid
+  customer   User            @relation("ReviewCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  providerId String          @db.Uuid
+  provider   ProviderProfile @relation("ReviewProvider", fields: [providerId], references: [id], onDelete: Restrict)
+  /// 1..5, validated server-side.
+  rating     Int             @db.SmallInt
+  comment    String?         @db.Text
+  status     ReviewStatus    @default(PUBLISHED)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([providerId, status])
+}
+
+// ─────────────────────────────── Subscriptions ───────────────────────────────
+
+model Plan {
+  id                   String   @id @default(uuid()) @db.Uuid
+  name                 String   @db.VarChar(100)
+  slug                 String   @unique @db.VarChar(100)
+  description          String?  @db.Text
+  price                Int
+  durationDays         Int
+  /// null = unlimited
+  maxRequestsPerPeriod Int?
+  /// null = unlimited
+  maxOffersPerPeriod   Int?
+  /// string[] of human-readable feature lines
+  features             Json     @default("[]")
+  isActive             Boolean  @default(true)
+  sortOrder            Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id               String             @id @default(uuid()) @db.Uuid
+  userId           String             @db.Uuid
+  user             User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  planId           String             @db.Uuid
+  plan             Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status           SubscriptionStatus @default(PENDING)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  /// Plan terms frozen at purchase time (price, duration, quotas).
+  planSnapshot     Json
+  requestsReceived Int                @default(0)
+  offersSubmitted  Int                @default(0)
+  cancelledAt      DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  payments Payment[]
+  matches  RequestMatch[]
+
+  @@index([userId, status])
+  @@index([status, endsAt])
+}
+
+// ─────────────────────────────── Payments & wallet ───────────────────────────
+
+/// All payments in this version are SIMULATED (no real gateway). Status is decided server-side only.
+model Payment {
+  id                 String            @id @default(uuid()) @db.Uuid
+  code               Int               @unique @default(autoincrement())
+  userId             String            @db.Uuid
+  user               User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  amount             Int
+  purpose            PaymentPurpose
+  status             PaymentStatus     @default(PENDING)
+  gateway            PaymentGateway    @default(SIMULATED)
+  isSimulated        Boolean           @default(true)
+  trackingCode       String?           @unique @db.VarChar(40)
+  failureReason      String?           @db.Text
+  subscriptionId     String?           @db.Uuid
+  subscription       Subscription?     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  featuredProviderId String?           @db.Uuid
+  featuredProvider   FeaturedProvider? @relation(fields: [featuredProviderId], references: [id], onDelete: Restrict)
+  paidAt             DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  walletTransactions WalletTransaction[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model Wallet {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id           String                  @id @default(uuid()) @db.Uuid
+  walletId     String                  @db.Uuid
+  wallet       Wallet                  @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  type         WalletTransactionType
+  reason       WalletTransactionReason
+  amount       Int
+  balanceAfter Int
+  paymentId    String?                 @db.Uuid
+  payment      Payment?                @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  orderId      String?                 @db.Uuid
+  order        Order?                  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  description  String?                 @db.VarChar(300)
+  createdAt    DateTime                @default(now())
+
+  @@index([walletId, createdAt])
+}
+
+// ─────────────────────────────── Featured providers ──────────────────────────
+
+/// Featured placement — independent of subscription plans.
+model FeaturedProvider {
+  id          String            @id @default(uuid()) @db.Uuid
+  providerId  String            @db.Uuid
+  provider    ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  placement   FeaturedPlacement @default(HOME)
+  isActive    Boolean           @default(true)
+  startsAt    DateTime
+  endsAt      DateTime
+  price       Int?
+  sortOrder   Int               @default(0)
+  createdById String?           @db.Uuid
+  createdBy   User?             @relation("FeaturedCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  payments Payment[]
+
+  @@index([placement, isActive, startsAt, endsAt])
+  @@index([providerId])
+}
+
+// ─────────────────────────────── Notifications & support ─────────────────────
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String           @db.VarChar(200)
+  body      String?          @db.Text
+  link      String?          @db.VarChar(300)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+model SupportTicket {
+  id        String         @id @default(uuid()) @db.Uuid
+  code      Int            @unique @default(autoincrement())
+  userId    String         @db.Uuid
+  user      User           @relation("TicketOwner", fields: [userId], references: [id], onDelete: Restrict)
+  subject   String         @db.VarChar(200)
+  category  TicketCategory @default(GENERAL)
+  status    TicketStatus   @default(OPEN)
+  orderId   String?        @db.Uuid
+  order     Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  closedAt  DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  messages TicketMessage[]
+
+  @@index([userId, status])
+  @@index([status, updatedAt])
+}
+
+model TicketMessage {
+  id        String        @id @default(uuid()) @db.Uuid
+  ticketId  String        @db.Uuid
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String        @db.Uuid
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  body      String        @db.Text
+  isStaff   Boolean       @default(false)
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+// ─────────────────────────────── Settings ────────────────────────────────────
+
+model SiteSetting {
+  key       String   @id @db.VarChar(100)
+  value     Json
+  updatedAt DateTime @updatedAt
+}

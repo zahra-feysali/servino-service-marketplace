@@ -10,8 +10,8 @@ _Last updated: 2026-11-16 — end of **Phase 4 (UI/UX, testing, finalization)**.
 | 3 — Dashboards & business features | **Complete** |
 | 4 — UI/UX, testing, finalization | **Complete** |
 
-All code-level work is complete. **Verification that needs PostgreSQL is BLOCKED** (PostgreSQL is not installed on the
-development machine) — see "Blocked" below. Nothing in this file claims a database-backed check passed.
+All work is complete. On 2026-11-16 PostgreSQL 18.7 was installed locally (portable EDB binaries, localhost only) and
+**every previously BLOCKED check was executed and passed** — see "Database verification" below.
 
 ## Phase 4 — implemented
 **Security review & fixes** (independent read-only audit of every Server Action and Route Handler; no IDOR or broken
@@ -51,22 +51,26 @@ the 67 app routes — **all resolve** (no dead links).
 | `npm run lint` | **PASSED** | 0 errors, 0 warnings |
 | `npm run typecheck` | **PASSED** | |
 | `npx prisma validate` / `generate` | **PASSED** | |
-| Migration SQL generation | **PASSED** | 3 migrations generated offline; **not applied** |
+| Migrations (`prisma migrate dev`) | **PASSED** | all 3 applied; schema in sync, no drift |
 | Unit tests | **PASSED** | **142 tests** in 11 files |
-| Integration tests (auth 5, marketplace 10, business 8 = 23) | **BLOCKED** | need PostgreSQL; auto-skipped |
+| Integration tests (auth 5, marketplace 10, business 8 = 23) | **PASSED** | against PostgreSQL 18.7; run twice, fixtures cleaned up |
 | `npm run build` | **PASSED** | 52 pages + route handlers, no warnings |
 | Production smoke test (no DB) | **PASSED** (partial) | security headers present; protected pages redirect to login; file routes 401; upload endpoints 401 anon / 403 cross-site / 411 chunked |
 | Link audit | **PASSED** | 166 links → 67 routes, 0 unresolved |
 | Browser RTL/mobile check (DB-free pages) | **PASSED** | login, register, 404, error state at 375 px |
-| `prisma migrate dev` / `db seed` / full manual walkthrough with data | **BLOCKED** | PostgreSQL not installed |
+| `prisma db seed` | **PASSED** | run twice (idempotent) |
+| Manual walkthrough with data (browser, production build) | **PASSED** | customer login → dynamic request with saved address → matched provider inbox + notification → offer → customer comparison & selection → order created; admin dashboard KPIs & charts with real data |
+
+## Database verification (2026-11-16)
+- PostgreSQL 18.7 (portable binaries, no Windows service; listens on localhost only; scram-sha-256 auth; dedicated
+  `servino` role with CREATEDB for the Prisma shadow database).
+- `prisma migrate dev`: 3 migrations applied, no drift. `prisma db seed`: OK (idempotent).
+- `npm test`: **165/165 passed** (142 unit + 23 integration), including the raw SQL paths: `FOR UPDATE` locks, atomic
+  quota UPDATEs, wallet lock, concurrent offer selection (exactly one order).
+- Browser walkthrough on the production build (see table above). It left one demo request/offer/order in the local DB.
 
 ## Blocked by missing environment dependencies
-PostgreSQL is not installed (no `psql`, service or Docker). Blocked until available:
-1. `npm run db:migrate` — applies and verifies the 3 offline-generated migrations.
-2. `npm run db:seed`.
-3. 23 integration tests (run automatically by `npm test` once `DATABASE_URL` is reachable).
-4. Manual end-to-end walkthrough of all dashboards with data; raw SQL (row locks, quota UPDATEs, wallet lock) has not yet
-   been executed against PostgreSQL.
+None.
 
 ## Required manual setup
 1. Install PostgreSQL 16+, create database/user (README → Database setup).
@@ -75,6 +79,7 @@ PostgreSQL is not installed (no `psql`, service or Docker). Blocked until availa
 
 ## Known issues / limitations
 - DB-backed public pages show the error state when PostgreSQL is unreachable (no mock data by design).
+- The local PostgreSQL is not a Windows service: after a reboot start it again (README → Local PostgreSQL).
 - Rate limiting is in-memory per process (use a shared store or sticky sessions with multiple instances).
 - Subscription/request expiry is applied lazily (no background scheduler).
 - Quotas apply to the whole subscription period; withdrawn offers do not refund quota.

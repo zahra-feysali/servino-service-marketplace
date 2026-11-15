@@ -37,7 +37,7 @@ Not used (per spec): SQLite, MongoDB, separate backend, Zustand, real payment ga
 | §17 Database design (all listed models + supporting models, enums, indexes, uniques, restrictive deletes, JSON answers) | Done |
 | §18 Security & code quality | Done — plus Phase 4 audit fixes |
 | §19 UI/UX & public pages (home, categories, service pages, request form, provider discovery & profiles, auth) | Done |
-| §22 Testing | Unit tests pass; DB integration tests written but BLOCKED (no PostgreSQL) |
+| §22 Testing | Done — 165 tests pass (unit + PostgreSQL integration) |
 
 ## 4. Verification results
 | Check | Result |
@@ -45,13 +45,13 @@ Not used (per spec): SQLite, MongoDB, separate backend, Zustand, real payment ga
 | Lint | PASSED |
 | Typecheck | PASSED |
 | Prisma validate / generate | PASSED |
-| Unit tests | PASSED — 142 tests |
-| Integration tests (23) | BLOCKED — PostgreSQL not installed |
+| Unit tests | PASSED — 142 tests (165 total with integration) |
+| Integration tests (23) | PASSED — PostgreSQL 18.7 |
 | Production build | PASSED |
 | Smoke tests without DB (redirects, 401/403/411, headers) | PASSED (partial) |
 | Internal link audit (166 links / 67 routes) | PASSED |
 | Browser RTL/mobile check of DB-free pages | PASSED |
-| Migrations applied, seed, full UI walkthrough with data | BLOCKED |
+| Migrations applied (3), seed (idempotent), UI walkthrough with data | PASSED |
 
 ## 5. Key technical decisions
 - **Stable versions only:** next-auth 4.24.15 (v5 is beta-only), Prisma 7.10.1 (`latest` tag is an 8.0 RC),
@@ -79,7 +79,7 @@ See IMPLEMENTATION_STATUS.md → "Known issues / limitations" (lazy expiry, in-m
 date pickers with Persian hints, admin-assigned featured placement, no wallet withdrawals).
 
 ## 8. Readiness
-The application is feature-complete for the specified scope and passes all checks that can run on this machine.
-**Before release**, PostgreSQL must be provisioned and the BLOCKED items executed: apply migrations, seed, run the 23
-integration tests (they cover matching, concurrent selection, order transitions, reviews, subscriptions, payments,
-wallet, verification and tickets) and do a manual walkthrough of all three dashboards.
+The application is feature-complete for the specified scope. All checks pass, including migrations, seed and the 23
+PostgreSQL integration tests (matching, concurrent selection, order transitions, reviews, subscriptions, payments, wallet,
+verification, tickets), plus a browser walkthrough of the core flow with real data. For production: managed PostgreSQL,
+HTTPS, a shared rate-limit store if scaling out, and `ALLOW_SIMULATED_PAYMENTS` left unset until a real gateway exists.

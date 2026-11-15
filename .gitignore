@@ -49,3 +49,6 @@ next-env.d.ts
 
 # local tooling
 .claude/settings.local.json
+
+# local preview launcher
+.claude/launch.json

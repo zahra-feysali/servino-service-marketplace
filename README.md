@@ -83,6 +83,13 @@ cp .env.example .env
    (`ALTER USER servino CREATEDB;`).
 3. Put the connection string into `DATABASE_URL` in `.env`.
 
+### Local PostgreSQL without a Windows service (portable binaries)
+If you use the portable EnterpriseDB zip instead of the installer, start/stop the server manually:
+```bash
+pg_ctl -D <data-dir> -l <data-dir>/server.log start
+pg_ctl -D <data-dir> stop
+```
+
 ## Migrations and seed data
 ```bash
 npm run db:migrate   # prisma migrate dev — applies prisma/migrations to your database

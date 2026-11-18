@@ -16,7 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { MAX_UPLOAD_MB, UPLOADABLE_MIME_TYPES, type FieldDefinition } from "@/features/forms/definitions";
 import { buildAnswersSchema, defaultAnswers, fileRules, validateFieldFiles } from "@/features/forms/answers";
 import { FILE_FIELD_PREFIX, GENERAL_ATTACHMENTS_FIELD, requestBaseSchema } from "@/features/requests/schemas";
-import { JalaliHint } from "@/components/shared/jalali-hint";
+import { JalaliDatePicker } from "@/components/shared/jalali-date-picker";
+import { todayIsoInTehran } from "@/lib/jalali";
 import { DynamicField } from "./dynamic-field";
 
 type Province = { id: string; name: string; cities: { id: string; name: string }[] };
@@ -249,8 +250,13 @@ export function RequestForm({
               </Field>
               <Field data-invalid={!!errors.preferredDate}>
                 <FieldLabel htmlFor="preferredDate">تاریخ ترجیحی (اختیاری)</FieldLabel>
-                <Input id="preferredDate" type="date" dir="ltr" className="text-left" {...form.register("preferredDate")} />
-                <JalaliHint value={preferredDate} />
+                <JalaliDatePicker
+                  id="preferredDate"
+                  value={preferredDate}
+                  min={todayIsoInTehran()}
+                  invalid={!!errors.preferredDate}
+                  onChange={(iso) => form.setValue("preferredDate", iso, { shouldValidate: true })}
+                />
                 <FieldError errors={[errors.preferredDate]} />
               </Field>
             </div>

@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { JalaliDatePicker } from "@/components/shared/jalali-date-picker";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { saveFieldAction } from "@/features/catalog/admin-actions";
@@ -241,11 +242,17 @@ export function FieldDialog({
                     <NativeSelectOption value="true">بله</NativeSelectOption>
                     <NativeSelectOption value="false">خیر</NativeSelectOption>
                   </NativeSelect>
+                ) : type === "DATE" ? (
+                  <Controller
+                    control={form.control}
+                    name="defaultValue"
+                    render={({ field: f }) => <JalaliDatePicker id={`${formId}-default`} value={f.value} onChange={f.onChange} />}
+                  />
                 ) : (
                   <Input
                     id={`${formId}-default`}
-                    dir={type === "NUMBER" || type === "DATE" || hasOptions(type) ? "ltr" : undefined}
-                    type={type === "DATE" ? "date" : type === "NUMBER" ? "number" : "text"}
+                    dir={type === "NUMBER" || hasOptions(type) ? "ltr" : undefined}
+                    type={type === "NUMBER" ? "number" : "text"}
                     {...form.register("defaultValue")}
                   />
                 )}

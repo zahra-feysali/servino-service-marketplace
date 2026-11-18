@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { JalaliDatePicker } from "@/components/shared/jalali-date-picker";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { FormFieldError, ServerForm, SubmitButton } from "@/components/shared/server-form";
 import { adminSaveFeaturedAction } from "@/features/admin/actions";
@@ -64,12 +65,12 @@ export function FeaturedDialog({
               </Field>
               <Field>
                 <FieldLabel htmlFor="f-start">شروع</FieldLabel>
-                <Input id="f-start" name="startsAt" type="date" dir="ltr" defaultValue={featured?.startsAt ?? today} required />
+                <JalaliDatePicker id="f-start" name="startsAt" defaultValue={featured?.startsAt ?? today} clearable={false} />
                 <FormFieldError name="startsAt" />
               </Field>
               <Field>
                 <FieldLabel htmlFor="f-end">پایان</FieldLabel>
-                <Input id="f-end" name="endsAt" type="date" dir="ltr" defaultValue={featured?.endsAt ?? in30} required />
+                <JalaliDatePicker id="f-end" name="endsAt" defaultValue={featured?.endsAt ?? in30} clearable={false} />
                 <FormFieldError name="endsAt" />
               </Field>
               <Field>

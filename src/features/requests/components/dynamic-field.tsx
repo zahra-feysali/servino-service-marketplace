@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { JalaliHint } from "@/components/shared/jalali-hint";
+import { JalaliDatePicker } from "@/components/shared/jalali-date-picker";
 import type { FieldDefinition } from "@/features/forms/definitions";
 
 /** Renders one dynamic (admin-defined) field, except FILE fields which the form handles itself. */
@@ -34,10 +34,25 @@ export function DynamicField<T extends FieldValues>({
   const options = field.options ?? [];
 
   switch (field.type) {
+    case "DATE":
+      return (
+        <Controller
+          control={control}
+          name={name}
+          render={({ field: f }) => (
+            <Field data-invalid={!!error}>
+              <FieldLabel htmlFor={id}>{label}</FieldLabel>
+              <JalaliDatePicker id={id} value={typeof f.value === "string" ? f.value : ""} onChange={f.onChange} invalid={!!error} />
+              {help}
+              {err}
+            </Field>
+          )}
+        />
+      );
+
     case "TEXT":
     case "TEXTAREA":
     case "NUMBER":
-    case "DATE":
       return (
         <Controller
           control={control}
@@ -50,10 +65,10 @@ export function DynamicField<T extends FieldValues>({
               ) : (
                 <Input
                   id={id}
-                  type={field.type === "NUMBER" ? "number" : field.type === "DATE" ? "date" : "text"}
+                  type={field.type === "NUMBER" ? "number" : "text"}
                   inputMode={field.type === "NUMBER" ? "decimal" : undefined}
-                  dir={field.type === "NUMBER" || field.type === "DATE" ? "ltr" : undefined}
-                  className={field.type === "NUMBER" || field.type === "DATE" ? "text-left" : undefined}
+                  dir={field.type === "NUMBER" ? "ltr" : undefined}
+                  className={field.type === "NUMBER" ? "text-left" : undefined}
                   min={field.type === "NUMBER" ? field.config?.min : undefined}
                   max={field.type === "NUMBER" ? field.config?.max : undefined}
                   placeholder={field.placeholder ?? undefined}
@@ -62,7 +77,6 @@ export function DynamicField<T extends FieldValues>({
                   value={f.value === undefined || f.value === null ? "" : String(f.value)}
                 />
               )}
-              {field.type === "DATE" ? <JalaliHint value={f.value} /> : null}
               {help}
               {err}
             </Field>

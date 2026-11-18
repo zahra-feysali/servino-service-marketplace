@@ -28,10 +28,12 @@ export function formatPrice(toman: number): string {
   return `${numberFormatter.format(toman)} تومان`;
 }
 
+// All displayed dates use the Persian (Jalali) calendar in Iran time, independent of the server time zone.
 const dateFormatter = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
   year: "numeric",
   month: "long",
   day: "numeric",
+  timeZone: "Asia/Tehran",
 });
 
 const dateTimeFormatter = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
@@ -40,7 +42,14 @@ const dateTimeFormatter = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
   day: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  timeZone: "Asia/Tehran",
 });
+
+const timeFormatter = new Intl.DateTimeFormat("fa-IR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" });
+
+export function formatTime(value: Date | string): string {
+  return timeFormatter.format(new Date(value));
+}
 
 export function formatDate(value: Date | string): string {
   return dateFormatter.format(new Date(value));

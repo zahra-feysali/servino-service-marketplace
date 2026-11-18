@@ -7,6 +7,7 @@ import {
   CreditCard,
   FileText,
   FolderTree,
+  Gem,
   Images,
   Inbox,
   Landmark,
@@ -89,6 +90,7 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
       label: "مالی",
       items: [
         { href: "/dashboard/provider/subscription", label: "اشتراک", icon: CreditCard },
+        { href: "/dashboard/provider/featured", label: "نمایش ویژه", icon: Sparkles },
         { href: "/dashboard/provider/wallet", label: "کیف پول و پرداخت‌ها", icon: Wallet },
         { href: "/dashboard/provider/earnings", label: "درآمد", icon: BadgeDollarSign },
       ],
@@ -130,6 +132,7 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
       items: [
         { href: "/dashboard/admin/finance", label: "مالی و کمیسیون", icon: Landmark },
         { href: "/dashboard/admin/plans", label: "پلن‌ها و اشتراک‌ها", icon: BadgeCheck },
+        { href: "/dashboard/admin/featured-plans", label: "پلن‌های ویژه", icon: Gem },
         { href: "/dashboard/admin/payments", label: "پرداخت‌ها و تراکنش‌ها", icon: Receipt },
       ],
     },

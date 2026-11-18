@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { AppError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { lockRow } from "@/lib/db-locks";
 import { applyOrderPayment } from "@/features/finance/service";
+import { activateFeaturedPurchase } from "@/features/featured/purchase-service";
 import { creditWallet } from "@/features/finance/wallet";
 import { notify } from "@/features/notifications/service";
 import { activateSubscription } from "@/features/subscriptions/service";
@@ -47,7 +48,7 @@ export async function settlePayment(paymentId: string, outcome: "SUCCESS" | "FAI
     const payment = await tx.payment.findUniqueOrThrow({
       where: { id: paymentId },
       select: {
-        id: true, code: true, userId: true, status: true, gateway: true, purpose: true, amount: true, subscriptionId: true, orderId: true,
+        id: true, code: true, userId: true, status: true, gateway: true, purpose: true, amount: true, subscriptionId: true, orderId: true, featuredProviderId: true,
         user: { select: { role: true } },
       },
     });
@@ -78,6 +79,9 @@ export async function settlePayment(paymentId: string, outcome: "SUCCESS" | "FAI
     } else if (payment.purpose === "ORDER") {
       if (!payment.orderId) throw new AppError("سفارش مرتبط با پرداخت یافت نشد.", "INVALID_STATE");
       await applyOrderPayment(tx, payment.orderId, payment);
+    } else if (payment.purpose === "FEATURED_PLACEMENT") {
+      if (!payment.featuredProviderId) throw new AppError("جایگاه ویژه مرتبط با پرداخت یافت نشد.", "INVALID_STATE");
+      await activateFeaturedPurchase(tx, payment.featuredProviderId);
     }
 
     await notify(tx, [{ userId: payment.userId, type: "PAYMENT_SUCCEEDED", title: `پرداخت ${payment.code} موفق بود`, body: formatPrice(payment.amount), link }]);

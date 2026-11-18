@@ -407,6 +407,16 @@ async function main() {
   // Commission rate: created once (10 %) and never overwritten, so the admin's choice survives re-seeding.
   await prisma.siteSetting.upsert({ where: { key: "finance.commissionBps" }, update: {}, create: { key: "finance.commissionBps", value: 1000 } });
 
+  console.log("Seeding featured plans…");
+  const featuredPlans = [
+    { slug: "home-30", name: "ویژه صفحه اصلی — ۳۰ روزه", description: "نمایش در بخش «متخصصان ویژه» صفحه اصلی", placement: "HOME" as const, durationDays: 30, price: 450_000, sortOrder: 0 },
+    { slug: "services-30", name: "ویژه صفحات خدمات — ۳۰ روزه", description: "نمایش بالاتر در صفحه خدماتی که ارائه می‌دهید", placement: "CATEGORY" as const, durationDays: 30, price: 300_000, sortOrder: 1 },
+    { slug: "search-14", name: "ویژه جستجو — ۱۴ روزه", description: "نمایش در ابتدای فهرست جستجوی متخصصان", placement: "SEARCH" as const, durationDays: 14, price: 150_000, sortOrder: 2 },
+  ];
+  for (const fp of featuredPlans) {
+    await prisma.featuredPlan.upsert({ where: { slug: fp.slug }, update: {}, create: fp });
+  }
+
   console.log("Seeding blog…");
   const categoryIds = new Map<string, string>();
   for (const c of BLOG_CATEGORIES) {

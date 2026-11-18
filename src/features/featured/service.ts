@@ -7,9 +7,12 @@ type FeaturedData = z.output<typeof featuredInputSchema>;
 
 export async function adminListFeatured() {
   return prisma.featuredProvider.findMany({
+    // Unpaid self-service purchases are not placements yet (they live on the payments page).
+    where: { NOT: { source: "PURCHASE", paidAt: null } },
     orderBy: [{ placement: "asc" }, { sortOrder: "asc" }, { startsAt: "desc" }],
     select: {
-      id: true, placement: true, isActive: true, startsAt: true, endsAt: true, price: true, sortOrder: true, createdAt: true,
+      id: true, placement: true, isActive: true, startsAt: true, endsAt: true, price: true, sortOrder: true, createdAt: true, source: true,
+      plan: { select: { name: true } },
       provider: { select: { id: true, displayName: true, verificationStatus: true } },
     },
   });

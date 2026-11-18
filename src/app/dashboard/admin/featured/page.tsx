@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Gem, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -29,6 +30,13 @@ export default async function AdminFeaturedPage() {
         title="متخصصان ویژه"
         description="متخصصان ویژه در جایگاه انتخاب‌شده (صفحه اصلی، صفحات خدمات، جستجو) بالاتر از بقیه نمایش داده می‌شوند."
         actions={
+          <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/dashboard/admin/featured-plans">
+              <Gem />
+              پلن‌های قابل خرید
+            </Link>
+          </Button>
           <FeaturedDialog
             defaultRange={defaultRange}
             providers={providers}
@@ -39,6 +47,7 @@ export default async function AdminFeaturedPage() {
               </Button>
             }
           />
+          </div>
         }
       />
       {items.length === 0 ? (
@@ -62,7 +71,14 @@ export default async function AdminFeaturedPage() {
                 const live = isFeaturedLive(f, now) && f.provider.verificationStatus === "APPROVED";
                 return (
                   <TableRow key={f.id}>
-                    <TableCell className="font-medium">{f.provider.displayName}</TableCell>
+                    <TableCell className="font-medium">
+                      {f.provider.displayName}
+                      {f.source === "PURCHASE" ? (
+                        <Badge variant="secondary" className="ms-2">
+                          خرید: {f.plan?.name ?? "پلن ویژه"}
+                        </Badge>
+                      ) : null}
+                    </TableCell>
                     <TableCell>{PLACEMENT_LABELS[f.placement]}</TableCell>
                     <TableCell className="text-xs">
                       {formatDate(f.startsAt)} تا {formatDate(f.endsAt)}

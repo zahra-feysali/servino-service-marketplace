@@ -7,9 +7,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
 import type { ActionResult } from "@/lib/errors";
+import { postFormData } from "@/lib/upload-client";
+import { UploadProgress } from "@/components/shared/upload-progress";
 
 type Result = ActionResult<unknown>;
-const FormStateContext = createContext<{ result: Result | null; pending: boolean }>({ result: null, pending: false });
+const FormStateContext = createContext<{ result: Result | null; pending: boolean; progress: number | null }>({ result: null, pending: false, progress: null });
 
 type Props = {
   /** Server Action taking FormData (usually pre-bound with ids), or… */
@@ -33,6 +35,7 @@ export function ServerForm({ action, endpoint, children, className, resetOnSucce
   const formRef = useRef<HTMLFormElement>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [pending, startTransition] = useTransition();
+  const [progress, setProgress] = useState<number | null>(null);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -42,8 +45,10 @@ export function ServerForm({ action, endpoint, children, className, resetOnSucce
       try {
         if (action) r = await action(formData);
         else {
-          const res = await fetch(endpoint!, { method: "POST", body: formData });
-          r = (await res.json()) as Result;
+          const hasFiles = [...formData.values()].some((v) => v instanceof File && v.size > 0);
+          if (hasFiles) setProgress(0);
+          r = await postFormData(endpoint!, formData, hasFiles ? setProgress : undefined);
+          setProgress(null);
         }
       } catch {
         r = { ok: false, error: "ارتباط با سرور برقرار نشد. لطفاً دوباره تلاش کنید." };
@@ -63,7 +68,7 @@ export function ServerForm({ action, endpoint, children, className, resetOnSucce
   }
 
   return (
-    <FormStateContext.Provider value={{ result, pending }}>
+    <FormStateContext.Provider value={{ result, pending, progress }}>
       <form ref={formRef} onSubmit={onSubmit} className={className} noValidate>
         <fieldset disabled={pending} className="contents">
           {children}
@@ -87,4 +92,10 @@ export function SubmitButton({ children, ...props }: React.ComponentProps<typeof
       {children}
     </Button>
   );
+}
+
+/** Upload progress for endpoint forms carrying files (renders nothing otherwise). */
+export function FormUploadProgress() {
+  const { progress } = useContext(FormStateContext);
+  return progress === null ? null : <UploadProgress percent={progress} />;
 }

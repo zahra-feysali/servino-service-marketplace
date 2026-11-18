@@ -4,13 +4,15 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Loader2, Paperclip, Send, X } from "lucide-react";
+import { AlertCircle, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { MultiFileInput } from "@/components/shared/multi-file-input";
+import { UploadProgress } from "@/components/shared/upload-progress";
+import { postFormData } from "@/lib/upload-client";
 import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_UPLOAD_MB, UPLOADABLE_MIME_TYPES, type FieldDefinition } from "@/features/forms/definitions";
@@ -49,6 +51,7 @@ export function RequestForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [fileErrors, setFileErrors] = useState<Record<string, string | undefined>>({});
+  const [progress, setProgress] = useState<number | null>(null);
 
   // Same validation rules as the server (shared Zod builders).
   const schema = useMemo(
@@ -72,14 +75,9 @@ export function RequestForm({
     return Object.values(next).every((v) => !v);
   }
 
-  function addFiles(key: string, list: FileList | null) {
-    if (!list) return;
-    setFiles((prev) => ({ ...prev, [key]: [...(prev[key] ?? []), ...Array.from(list)] }));
+  function setFieldFiles(key: string, next: File[]) {
+    setFiles((prev) => ({ ...prev, [key]: next }));
     setFileErrors((prev) => ({ ...prev, [key]: undefined }));
-  }
-
-  function removeFile(key: string, index: number) {
-    setFiles((prev) => ({ ...prev, [key]: (prev[key] ?? []).filter((_, i) => i !== index) }));
   }
 
   async function onSubmit() {
@@ -99,11 +97,10 @@ export function RequestForm({
     }
 
     setSubmitting(true);
+    const hasFiles = Object.values(files).some((l) => l.length > 0);
+    setProgress(hasFiles ? 0 : null);
     try {
-      const res = await fetch("/api/requests", { method: "POST", body });
-      const result = (await res.json()) as
-        | { ok: true; data: { requestId: string; matchedProviders: number }; message?: string }
-        | { ok: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
+      const result = await postFormData<{ requestId: string; matchedProviders: number }>("/api/requests", body, hasFiles ? setProgress : undefined);
       if (!result.ok) {
         setFormError(result.error);
         for (const [key, messages] of Object.entries(result.fieldErrors ?? {})) {
@@ -119,10 +116,9 @@ export function RequestForm({
       toast.success(result.message ?? "درخواست ثبت شد.");
       router.push(`/dashboard/customer/requests/${result.data.requestId}`);
       router.refresh();
-    } catch {
-      setFormError("ارتباط با سرور برقرار نشد. لطفاً دوباره تلاش کنید.");
     } finally {
       setSubmitting(false);
+      setProgress(null);
     }
   }
 
@@ -132,33 +128,16 @@ export function RequestForm({
         {title}
         {required ? <span className="text-destructive"> *</span> : null}
       </FieldLabel>
-      <Input
+      {help ? <FieldDescription id={`file-${key}-help`}>{help}</FieldDescription> : null}
+      <MultiFileInput
         id={`file-${key}`}
-        type="file"
-        multiple={rules.maxFiles > 1}
-        accept={rules.accept.join(",")}
-        onChange={(e) => {
-          addFiles(key, e.target.files);
-          e.target.value = "";
-        }}
+        rules={rules}
+        files={files[key] ?? []}
+        onChange={(next) => setFieldFiles(key, next)}
+        invalid={!!fileErrors[key]}
+        disabled={submitting}
+        describedBy={help ? `file-${key}-help` : undefined}
       />
-      <FieldDescription>
-        {help ? `${help} — ` : ""}حداکثر {rules.maxFiles} فایل، هر فایل تا {Math.round(rules.maxBytes / 1024 / 1024)} مگابایت (
-        {rules.accept.map((m) => m.split("/")[1].toUpperCase()).join("، ")})
-      </FieldDescription>
-      {(files[key] ?? []).length > 0 ? (
-        <ul className="space-y-1">
-          {(files[key] ?? []).map((f, i) => (
-            <li key={`${f.name}-${i}`} className="flex items-center gap-2 text-sm">
-              <Paperclip className="size-4 text-muted-foreground" aria-hidden />
-              <span className="truncate">{f.name}</span>
-              <Button type="button" variant="ghost" size="icon-xs" aria-label="حذف فایل" onClick={() => removeFile(key, i)}>
-                <X />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
       <FieldError>{fileErrors[key]}</FieldError>
     </Field>
   );
@@ -282,10 +261,13 @@ export function RequestForm({
         </CardContent>
       </Card>
 
-      <Button type="submit" size="lg" disabled={submitting} className="w-full sm:w-auto">
-        {submitting ? <Loader2 className="animate-spin" /> : <Send />}
-        ثبت درخواست
-      </Button>
+      <div className="space-y-3">
+        {progress !== null ? <UploadProgress percent={progress} /> : null}
+        <Button type="submit" size="lg" disabled={submitting} className="w-full sm:w-auto">
+          {submitting ? <Loader2 className="animate-spin" /> : <Send />}
+          {submitting && progress !== null && progress < 100 ? "در حال بارگذاری فایل‌ها…" : "ثبت درخواست"}
+        </Button>
+      </div>
     </form>
   );
 }

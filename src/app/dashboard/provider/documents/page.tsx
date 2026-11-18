@@ -2,14 +2,15 @@ import type { Metadata } from "next";
 import { FileText, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { FormFieldError, ServerForm, SubmitButton } from "@/components/shared/server-form";
+import { FormFieldError, ServerForm, FormUploadProgress, SubmitButton } from "@/components/shared/server-form";
+import { MultiFileInput } from "@/components/shared/multi-file-input";
 import { removeDocumentAction } from "@/features/providers/actions";
 import { getProviderWorkspace } from "@/features/providers/profile-service";
 import { DOCUMENT_STATUS_META, DOCUMENT_TYPE_LABELS, MAX_DOCUMENTS } from "@/features/providers/verification";
@@ -53,10 +54,14 @@ export default async function ProviderDocumentsPage() {
               </div>
               <Field>
                 <FieldLabel htmlFor="file">فایل</FieldLabel>
-                <Input id="file" name="file" type="file" required accept="image/jpeg,image/png,image/webp,application/pdf" />
-                <FieldDescription>JPEG، PNG، WebP یا PDF</FieldDescription>
+                <MultiFileInput
+                  id="file"
+                  name="file"
+                  rules={{ accept: ["image/jpeg", "image/png", "image/webp", "application/pdf"], maxBytes: 5 * 1024 * 1024, maxFiles: 1 }}
+                />
                 <FormFieldError name="file" />
               </Field>
+              <FormUploadProgress />
               <SubmitButton className="justify-self-start">بارگذاری</SubmitButton>
             </FieldGroup>
           </ServerForm>

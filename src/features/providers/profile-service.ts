@@ -1,9 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { AppError, NotFoundError, isUniqueConstraintError } from "@/lib/errors";
 import { lockRow } from "@/lib/db-locks";
-import { detectMimeType, sanitizeFileName } from "@/lib/files";
+import { DOCUMENT_MIME_TYPES, IMAGE_MIME_TYPES, readValidatedFile } from "@/lib/uploads";
 import { deleteStoredFiles, saveFile } from "@/lib/storage";
-import { MAX_UPLOAD_MB, type UploadableMime } from "@/features/forms/definitions";
 import { notify } from "@/features/notifications/service";
 import { getProviderProfileByUserId } from "./service";
 import {
@@ -83,18 +82,8 @@ export async function removeSkill(userId: string, skillId: string) {
   if (r.count === 0) throw new NotFoundError();
 }
 
-const IMAGE_TYPES: UploadableMime[] = ["image/jpeg", "image/png", "image/webp"];
-const DOCUMENT_TYPES: UploadableMime[] = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-
-/** Validates an uploaded file by size and real content type; returns bytes + detected MIME. */
-async function readValidatedFile(file: File, allowed: UploadableMime[]) {
-  if (file.size <= 0) throw new AppError("فایل خالی است.", "INVALID_FILE");
-  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) throw new AppError(`حجم فایل بیش از ${MAX_UPLOAD_MB} مگابایت است.`, "INVALID_FILE");
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const mime = detectMimeType(bytes);
-  if (!mime || !allowed.includes(mime)) throw new AppError("نوع فایل مجاز نیست.", "INVALID_FILE");
-  return { bytes, mime, fileName: sanitizeFileName(file.name) };
-}
+const IMAGE_TYPES = IMAGE_MIME_TYPES;
+const DOCUMENT_TYPES = DOCUMENT_MIME_TYPES;
 
 export async function addPortfolioItem(userId: string, data: { title: string; description: string | null }, image: File | null) {
   const profile = await getProviderProfileByUserId(userId);

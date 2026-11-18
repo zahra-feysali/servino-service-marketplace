@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { FormFieldError, ServerForm, SubmitButton } from "@/components/shared/server-form";
+import { FormFieldError, ServerForm, FormUploadProgress, SubmitButton } from "@/components/shared/server-form";
+import { MultiFileInput } from "@/components/shared/multi-file-input";
 import { removePortfolioItemAction } from "@/features/providers/actions";
 import { getProviderWorkspace } from "@/features/providers/profile-service";
 import { MAX_PORTFOLIO_ITEMS } from "@/features/providers/verification";
@@ -41,9 +42,11 @@ export default async function ProviderPortfolioPage() {
               </Field>
               <Field>
                 <FieldLabel htmlFor="image">تصویر (اختیاری)</FieldLabel>
-                <Input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" />
-                <FieldDescription>JPEG، PNG یا WebP تا ۵ مگابایت. حداکثر {MAX_PORTFOLIO_ITEMS.toLocaleString("fa-IR")} نمونه‌کار.</FieldDescription>
+                <MultiFileInput id="image" name="image" rules={{ accept: ["image/jpeg", "image/png", "image/webp"], maxBytes: 5 * 1024 * 1024, maxFiles: 1 }} />
+                <FieldDescription>حداکثر {MAX_PORTFOLIO_ITEMS.toLocaleString("fa-IR")} نمونه‌کار.</FieldDescription>
+                <FormFieldError name="image" />
               </Field>
+              <FormUploadProgress />
               <SubmitButton className="justify-self-start">افزودن</SubmitButton>
             </FieldGroup>
           </ServerForm>

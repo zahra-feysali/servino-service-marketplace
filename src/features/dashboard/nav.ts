@@ -15,6 +15,7 @@ import {
   MapPin,
   Megaphone,
   MessageSquareText,
+  MessagesSquare,
   PackageCheck,
   Receipt,
   Send,
@@ -31,7 +32,7 @@ import {
 } from "lucide-react";
 import type { AppRole } from "@/features/auth/rbac";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon; badge?: "unread" };
+export type NavItem = { href: string; label: string; icon: LucideIcon; badge?: "unread" | "messages" };
 export type NavGroup = { label: string; items: NavItem[] };
 
 /**
@@ -46,6 +47,7 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
         { href: "/dashboard/customer", label: "پیشخوان", icon: LayoutDashboard },
         { href: "/dashboard/customer/requests", label: "درخواست‌ها و پیشنهادها", icon: ClipboardList },
         { href: "/dashboard/customer/orders", label: "سفارش‌های من", icon: PackageCheck },
+        { href: "/dashboard/customer/messages", label: "پیام‌ها", icon: MessagesSquare, badge: "messages" },
         { href: "/dashboard/customer/reviews", label: "نظرات من", icon: MessageSquareText },
       ],
     },
@@ -68,6 +70,7 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
         { href: "/dashboard/provider/requests", label: "درخواست‌های مرتبط", icon: Inbox },
         { href: "/dashboard/provider/offers", label: "پیشنهادهای من", icon: Send },
         { href: "/dashboard/provider/orders", label: "سفارش‌های دریافتی", icon: PackageCheck },
+        { href: "/dashboard/provider/messages", label: "پیام‌ها", icon: MessagesSquare, badge: "messages" },
         { href: "/dashboard/provider/reviews", label: "نظرات مشتریان", icon: Star },
       ],
     },

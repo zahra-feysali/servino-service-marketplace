@@ -17,6 +17,7 @@ import { getCustomerRequestDetail } from "@/features/requests/queries";
 import { isUuid } from "@/lib/db-locks";
 import { requireRolePage } from "@/lib/authz";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { OpenChatButton } from "@/features/chat/components/open-chat-button";
 import { avatarSrc } from "@/features/avatars/rules";
 import { cn, formatDate, formatDateTime, formatPrice, toPersianDigits } from "@/lib/utils";
 
@@ -149,10 +150,10 @@ export default async function CustomerRequestDetailPage({ params, searchParams }
                   </dl>
                   <p className="text-sm leading-7 whitespace-pre-line text-muted-foreground">{o.description}</p>
                   {o.notes ? <p className="text-xs text-muted-foreground">یادداشت: {o.notes}</p> : null}
+                  <div className="mt-auto flex flex-wrap gap-2">
                   {canSelect && o.status === "PENDING" ? (
                     <ActionButton
                       action={selectOfferAction.bind(null, request.id, o.id)}
-                      className="mt-auto"
                       redirectBase="/dashboard/customer/orders"
                       confirm={{
                         title: `انتخاب ${o.provider.displayName}؟`,
@@ -163,6 +164,8 @@ export default async function CustomerRequestDetailPage({ params, searchParams }
                       انتخاب این متخصص
                     </ActionButton>
                   ) : null}
+                  <OpenChatButton requestId={request.id} providerId={o.provider.id} label="گفتگو با متخصص" />
+                  </div>
                 </div>
               ))}
             </div>

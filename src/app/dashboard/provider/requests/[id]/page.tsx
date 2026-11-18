@@ -11,6 +11,7 @@ import { ActionButton } from "@/components/shared/action-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { withdrawOfferAction } from "@/features/marketplace/actions";
 import { OfferForm } from "@/features/offers/components/offer-form";
+import { OpenChatButton } from "@/features/chat/components/open-chat-button";
 import { getProviderProfileByUserId } from "@/features/providers/service";
 import { AnswersView, AttachmentList } from "@/features/requests/components/answers-view";
 import { DURATION_UNIT_LABELS, OFFER_STATUS_META, REQUEST_STATUS_META, effectiveRequestStatus } from "@/features/requests/labels";
@@ -115,6 +116,7 @@ export default async function ProviderRequestDetailPage({ params }: PageProps<"/
                     </Link>
                   </Button>
                 ) : null}
+                <OpenChatButton requestId={request.id} label="گفتگو با مشتری" />
                 {offer.status === "PENDING" && request.status === "OPEN" ? (
                   <ActionButton
                     action={withdrawOfferAction.bind(null, offer.id)}

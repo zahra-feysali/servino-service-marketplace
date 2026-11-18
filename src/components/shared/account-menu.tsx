@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { ChevronDown, LayoutDashboard, LogOut, Settings, UserRound, Wallet } from "lucide-react";
+import { ChevronDown, LayoutDashboard, LogOut, MessagesSquare, Settings, UserRound, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -61,12 +61,20 @@ export function AccountMenu({ name, role, avatarUrl }: Props) {
             </Link>
           </DropdownMenuItem>
           {role !== "ADMIN" ? (
-            <DropdownMenuItem asChild>
-              <Link href={`${base}/wallet`}>
-                <Wallet />
-                کیف پول
-              </Link>
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem asChild>
+                <Link href={`${base}/messages`}>
+                  <MessagesSquare />
+                  پیام‌ها
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`${base}/wallet`}>
+                  <Wallet />
+                  کیف پول
+                </Link>
+              </DropdownMenuItem>
+            </>
           ) : null}
           <DropdownMenuItem asChild>
             <Link href={`${base}/settings`}>

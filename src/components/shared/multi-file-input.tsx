@@ -207,7 +207,7 @@ export function MultiFileInput({ id, rules, files: controlled, onChange, name, i
   );
 }
 
-function FileChip({ file, onRemove, disabled }: { file: File; onRemove: () => void; disabled?: boolean }) {
+export function FileChip({ file, onRemove, disabled }: { file: File; onRemove: () => void; disabled?: boolean }) {
   const isImage = file.type.startsWith("image/");
   const imgRef = useRef<HTMLImageElement>(null);
   // The object URL is created and revoked in the same effect (safe with StrictMode's

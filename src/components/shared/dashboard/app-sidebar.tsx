@@ -22,7 +22,7 @@ import { Logo } from "@/components/shared/logo";
 import { DASHBOARD_NAV } from "@/features/dashboard/nav";
 import { dashboardPathForRole, type AppRole } from "@/features/auth/rbac";
 
-export function AppSidebar({ role, unreadCount }: { role: AppRole; unreadCount: number }) {
+export function AppSidebar({ role, badges }: { role: AppRole; badges: { unread: number; messages: number } }) {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
   const home = dashboardPathForRole(role);
@@ -48,9 +48,9 @@ export function AppSidebar({ role, unreadCount }: { role: AppRole; unreadCount: 
                         <span>{item.label}</span>
                       </Link>
                     </SidebarMenuButton>
-                    {item.badge === "unread" && unreadCount > 0 ? (
+                    {item.badge && badges[item.badge] > 0 ? (
                       <SidebarMenuBadge className="bg-primary text-primary-foreground">
-                        {unreadCount > 99 ? "۹۹+" : unreadCount.toLocaleString("fa-IR")}
+                        {badges[item.badge] > 99 ? "۹۹+" : badges[item.badge].toLocaleString("fa-IR")}
                       </SidebarMenuBadge>
                     ) : null}
                   </SidebarMenuItem>

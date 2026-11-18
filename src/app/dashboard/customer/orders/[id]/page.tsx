@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Star } from "lucide-react";
 import { OrderDetail } from "@/features/orders/components/order-detail";
+import { OpenChatButton } from "@/features/chat/components/open-chat-button";
 import { getOrderDetail } from "@/features/orders/service";
 import { getWalletBalance } from "@/features/payments/service";
 import { ReviewForm } from "@/features/reviews/components/review-form";
@@ -34,5 +35,5 @@ export default async function CustomerOrderPage({ params }: PageProps<"/dashboar
     );
 
   const wallet = await getWalletBalance(user.id);
-  return <OrderDetail order={order} viewerRole="CUSTOMER" reviewSlot={reviewSlot} walletBalance={wallet} />;
+  return <OrderDetail order={order} headerActions={<OpenChatButton requestId={order.request.id} providerId={order.provider.id} label="گفتگو با متخصص" />} viewerRole="CUSTOMER" reviewSlot={reviewSlot} walletBalance={wallet} />;
 }

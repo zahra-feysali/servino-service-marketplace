@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/shared/dashboard/app-sidebar";
 import { AccountMenu } from "@/components/shared/account-menu";
 import { ROLE_LABELS, dashboardPathForRole } from "@/features/auth/rbac";
 import { countUnread } from "@/features/notifications/service";
+import { countUnreadMessages } from "@/features/chat/service";
 import type { CurrentUser } from "@/lib/authz";
 
 const PANEL_TITLES = {
@@ -16,11 +17,11 @@ const PANEL_TITLES = {
 } as const;
 
 export async function DashboardShell({ user, children }: { user: CurrentUser; children: React.ReactNode }) {
-  const unread = await countUnread(user.id);
+  const [unread, messages] = await Promise.all([countUnread(user.id), user.role === "ADMIN" ? 0 : countUnreadMessages(user.id)]);
 
   return (
     <SidebarProvider>
-      <AppSidebar role={user.role} unreadCount={unread} />
+      <AppSidebar role={user.role} badges={{ unread, messages }} />
       <SidebarInset id="main">
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-card/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/70 sm:px-6">
           <div className="flex items-center gap-2">

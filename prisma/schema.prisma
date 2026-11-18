@@ -175,6 +175,7 @@ enum NotificationType {
   PAYMENT_SUCCEEDED
   PAYMENT_FAILED
   TICKET_REPLY
+  NEW_MESSAGE
   SYSTEM
 }
 
@@ -232,6 +233,8 @@ model User {
   reviewedProfiles ProviderProfile[]      @relation("ProviderReviewer")
   cancelledOrders  Order[]                @relation("OrderCanceller")
   featuredCreated  FeaturedProvider[]     @relation("FeaturedCreator")
+  conversations    Conversation[]         @relation("ConversationCustomer")
+  messages         Message[]              @relation("MessageSender")
 
   @@index([role, status])
   @@index([createdAt])
@@ -266,17 +269,18 @@ model ProviderProfile {
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
 
-  services    ProviderService[]
-  areas       ServiceArea[]
-  skills      ProviderSkill[]
-  portfolio   PortfolioItem[]
-  documents   ProviderDocument[]
-  offers      ProviderOffer[]
-  orders      Order[]            @relation("OrderProvider")
-  reviews     Review[]           @relation("ReviewProvider")
-  matches     RequestMatch[]
-  featured    FeaturedProvider[]
-  settlements OrderSettlement[]
+  services      ProviderService[]
+  areas         ServiceArea[]
+  skills        ProviderSkill[]
+  portfolio     PortfolioItem[]
+  documents     ProviderDocument[]
+  offers        ProviderOffer[]
+  orders        Order[]            @relation("OrderProvider")
+  reviews       Review[]           @relation("ReviewProvider")
+  matches       RequestMatch[]
+  featured      FeaturedProvider[]
+  settlements   OrderSettlement[]
+  conversations Conversation[]
 
   @@index([verificationStatus])
   @@index([ratingAverage])
@@ -493,11 +497,12 @@ model ServiceRequest {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  attachments RequestAttachment[]
-  offers      ProviderOffer[]
-  history     RequestStatusHistory[]
-  matches     RequestMatch[]
-  order       Order?
+  attachments   RequestAttachment[]
+  offers        ProviderOffer[]
+  history       RequestStatusHistory[]
+  matches       RequestMatch[]
+  order         Order?
+  conversations Conversation[]
 
   @@index([customerId, status])
   @@index([serviceId, cityId, status])
@@ -871,4 +876,53 @@ model SiteSetting {
   key       String   @id @db.VarChar(100)
   value     Json
   updatedAt DateTime @updatedAt
+}
+
+// ── Chat (customer ↔ provider, per request + provider; available once an offer exists) ──
+
+model Conversation {
+  id            String          @id @default(uuid()) @db.Uuid
+  requestId     String          @db.Uuid
+  request       ServiceRequest  @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  providerId    String          @db.Uuid
+  provider      ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  /// Denormalised from the request for fast per-user listing.
+  customerId    String          @db.Uuid
+  customer      User            @relation("ConversationCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  lastMessageAt DateTime        @default(now())
+  createdAt     DateTime        @default(now())
+  messages      Message[]
+
+  @@unique([requestId, providerId])
+  @@index([customerId, lastMessageAt])
+  @@index([providerId, lastMessageAt])
+}
+
+model Message {
+  id             String              @id @default(uuid()) @db.Uuid
+  conversationId String              @db.Uuid
+  conversation   Conversation        @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  senderId       String              @db.Uuid
+  sender         User                @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+  body           String?             @db.VarChar(2000)
+  /// Set when the recipient has seen the message.
+  readAt         DateTime?
+  createdAt      DateTime            @default(now())
+  attachments    MessageAttachment[]
+
+  @@index([conversationId, createdAt])
+  @@index([conversationId, senderId, readAt])
+}
+
+model MessageAttachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  messageId  String   @db.Uuid
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Restrict)
+  fileName   String   @db.VarChar(150)
+  mimeType   String   @db.VarChar(100)
+  size       Int
+  storageKey String   @unique @db.VarChar(80)
+  createdAt  DateTime @default(now())
+
+  @@index([messageId])
 }

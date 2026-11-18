@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Star } from "lucide-react";
 import { OrderDetail } from "@/features/orders/components/order-detail";
+import { OpenChatButton } from "@/features/chat/components/open-chat-button";
 import { getOrderDetail } from "@/features/orders/service";
 import { getProviderProfileByUserId } from "@/features/providers/service";
 import { isUuid } from "@/lib/db-locks";
@@ -31,5 +32,5 @@ export default async function ProviderOrderPage({ params }: PageProps<"/dashboar
       </div>
     ) : null;
 
-  return <OrderDetail order={order} viewerRole="PROVIDER" reviewSlot={reviewSlot} />;
+  return <OrderDetail order={order} headerActions={<OpenChatButton requestId={order.request.id} label="گفتگو با مشتری" />} viewerRole="PROVIDER" reviewSlot={reviewSlot} />;
 }

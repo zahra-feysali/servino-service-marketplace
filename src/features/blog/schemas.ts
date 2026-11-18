@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isUuid } from "@/lib/db-locks";
 import { SLUG_REGEX } from "./markup";
 
 const slug = z
@@ -25,7 +26,7 @@ export const blogPostSchema = z.object({
     .string()
     .trim()
     .transform((v) => (v === "" ? null : v))
-    .refine((v) => v === null || /^[0-9a-f-]{36}$/i.test(v), "دسته‌بندی نامعتبر است."),
+    .refine((v) => v === null || isUuid(v), "دسته‌بندی نامعتبر است."),
   coverAlt: optional(200, "متن جایگزین تصویر حداکثر ۲۰۰ نویسه است."),
   seoTitle: optional(70, "عنوان سئو حداکثر ۷۰ نویسه است."),
   seoDescription: optional(160, "توضیح سئو حداکثر ۱۶۰ نویسه است."),

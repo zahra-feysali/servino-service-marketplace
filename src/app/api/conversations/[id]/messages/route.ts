@@ -5,6 +5,11 @@ import { bodySizeError, isSameOriginRequest } from "@/lib/request-guards";
 import { AppError, fail, ok, toActionError } from "@/lib/errors";
 import { readMessages, sendMessage } from "@/features/chat/service";
 import { CHAT_FILE_MAX_BYTES, MAX_CHAT_FILES, messageBodySchema } from "@/features/chat/rules";
+import { namedLimiter } from "@/lib/rate-limit";
+
+/** Per-user send limits (in-memory; use a shared store with several instances). */
+const messageLimiter = namedLimiter("chat:messages", 30, 60_000);
+const fileLimiter = namedLimiter("chat:files", 40, 60 * 60_000);
 
 function statusFor(error: unknown) {
   if (!(error instanceof AppError)) return 500;
@@ -52,6 +57,14 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/convers
     const parsed = messageBodySchema.safeParse(typeof rawBody === "string" ? rawBody : "");
     if (!parsed.success) return NextResponse.json(fail(parsed.error.issues[0]?.message ?? "پیام نامعتبر است."), { status: 400 });
     const files = form.getAll("files").filter((v): v is File => v instanceof File && v.size > 0);
+    if (!messageLimiter.hit(`u:${user.id}`).allowed) {
+      return NextResponse.json(fail("تعداد پیام‌ها زیاد است؛ کمی صبر کنید و دوباره بفرستید."), { status: 429 });
+    }
+    for (let i = 0; i < files.length; i++) {
+      if (!fileLimiter.hit(`u:${user.id}`).allowed) {
+        return NextResponse.json(fail("سقف ارسال فایل در این ساعت پر شده است؛ بعداً دوباره تلاش کنید."), { status: 429 });
+      }
+    }
     const message = await sendMessage(user, id, parsed.data, files);
     return NextResponse.json(ok(message), { status: 201 });
   } catch (error) {

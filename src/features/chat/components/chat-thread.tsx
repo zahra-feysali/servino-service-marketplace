@@ -270,7 +270,8 @@ export function ChatThread(props: Props) {
               }}
               rows={1}
               maxLength={MAX_MESSAGE_LENGTH}
-              placeholder="پیام خود را بنویسید… (Shift+Enter برای خط جدید)"
+              placeholder="پیام خود را بنویسید…"
+              title="Enter: ارسال · Shift+Enter: خط جدید"
               className="max-h-40 min-h-10 flex-1 resize-none"
               disabled={sending}
             />

@@ -97,6 +97,10 @@ describe.skipIf(!DB_AVAILABLE)("chat (PostgreSQL)", async () => {
     expect(fromProvider.conversationId).toBe(fromCustomer.conversationId); // one conversation per request + provider
     convId = fromCustomer.conversationId;
 
+    // Before selection the provider only sees a masked customer name; the customer sees the provider's display name.
+    expect((await chat.getConversationForUser(p1, convId)).counterpart.name).toBe("مشتری گ.");
+    expect((await chat.getConversationForUser(customer, convId)).counterpart.name).toBe("متخصص یک");
+
     await expect(chat.getConversationForUser(intruder, convId)).rejects.toThrow();
     await expect(chat.getConversationForUser(p2, convId)).rejects.toThrow();
     await expect(chat.getConversationForUser({ id: randomUUID(), role: "ADMIN" }, convId)).rejects.toThrow();

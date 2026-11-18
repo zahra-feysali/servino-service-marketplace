@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { deleteStoredFiles, readStoredFile, saveFile } from "@/lib/storage";
 import { readValidatedFile } from "@/lib/uploads";
+import { lockRow } from "@/lib/db-locks";
 import { AVATAR_MAX_BYTES, AVATAR_MIME_TYPES, canViewAvatar, type AvatarViewer } from "./rules";
 
 /** Replaces the user's profile picture. The old file is removed only after the DB update succeeds. */
@@ -9,9 +10,13 @@ export async function setAvatar(userId: string, file: File) {
   const key = await saveFile(f.bytes, f.mime);
   let previous: string | null = null;
   try {
-    const before = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { avatarKey: true } });
-    previous = before.avatarKey;
-    await prisma.user.update({ where: { id: userId }, data: { avatarKey: key, avatarUpdatedAt: new Date() } });
+    // The user row is locked so concurrent uploads replace (and later delete) each other's files correctly.
+    previous = await prisma.$transaction(async (tx) => {
+      await lockRow(tx, "User", userId);
+      const before = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { avatarKey: true } });
+      await tx.user.update({ where: { id: userId }, data: { avatarKey: key, avatarUpdatedAt: new Date() } });
+      return before.avatarKey;
+    });
   } catch (e) {
     await deleteStoredFiles([key]);
     throw e;
@@ -26,13 +31,13 @@ export async function removeAvatar(userId: string) {
   await deleteStoredFiles([before.avatarKey]);
 }
 
-/** True when the two users are counterparts on at least one offer (and so on any order/chat). */
+/** True when the two users are counterparts on a live (pending or accepted) offer. */
 async function hasBusinessRelation(a: string, b: string): Promise<boolean> {
   const count = await prisma.providerOffer.count({
     where: {
       OR: [
-        { provider: { userId: a }, request: { customerId: b } },
-        { provider: { userId: b }, request: { customerId: a } },
+        { provider: { userId: a }, request: { customerId: b }, status: { in: ["PENDING", "ACCEPTED"] } },
+        { provider: { userId: b }, request: { customerId: a }, status: { in: ["PENDING", "ACCEPTED"] } },
       ],
     },
   });

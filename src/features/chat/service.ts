@@ -5,7 +5,7 @@ import { readValidatedFile } from "@/lib/uploads";
 import { lockRow } from "@/lib/db-locks";
 import { notify } from "@/features/notifications/service";
 import { avatarSrc } from "@/features/avatars/rules";
-import { toPersianDigits } from "@/lib/utils";
+import { maskName, toPersianDigits } from "@/lib/utils";
 import {
   CHAT_FILE_MAX_BYTES,
   CHAT_MIME_TYPES,
@@ -19,6 +19,9 @@ import {
 } from "./rules";
 
 type Actor = { id: string; role: "CUSTOMER" | "PROVIDER" | "ADMIN" };
+
+/** Providers see the customer's full name only once they are selected (an order exists); before that it is masked. */
+const customerNameForProvider = (fullName: string, selected: boolean) => (selected ? fullName : maskName(fullName));
 
 const conversationSelect = {
   id: true,
@@ -57,7 +60,7 @@ export async function getConversationForUser(actor: Actor, conversationId: strin
   const counterpart =
     side === "CUSTOMER"
       ? { name: conv.provider.displayName, avatarUrl: avatarSrc(conv.provider.userId, conv.provider.user.avatarUpdatedAt) }
-      : { name: conv.customer.fullName, avatarUrl: avatarSrc(conv.customerId, conv.customer.avatarUpdatedAt) };
+      : { name: customerNameForProvider(conv.customer.fullName, !!order), avatarUrl: avatarSrc(conv.customerId, conv.customer.avatarUpdatedAt) };
   return { conv, side, state, order, counterpart };
 }
 
@@ -140,7 +143,8 @@ export async function sendMessage(actor: Actor, conversationId: string, body: st
     const recipientId = side === "CUSTOMER" ? conv.provider.userId : conv.customerId;
     const recipientSide: ChatSide = side === "CUSTOMER" ? "PROVIDER" : "CUSTOMER";
     const link = conversationPath(recipientSide, conv.id);
-    const senderName = side === "CUSTOMER" ? conv.customer.fullName : conv.provider.displayName;
+    const hasOrder = !!conv.request.order && conv.request.order.providerId === conv.providerId;
+    const senderName = side === "CUSTOMER" ? customerNameForProvider(conv.customer.fullName, hasOrder) : conv.provider.displayName;
 
     return await prisma.$transaction(async (tx) => {
       // Serialises concurrent sends per conversation (keeps lastMessageAt and notification dedupe consistent).
@@ -238,7 +242,10 @@ export async function listConversations(actor: Actor, take = 50) {
       counterpart:
         side === "CUSTOMER"
           ? { name: c.provider.displayName, avatarUrl: avatarSrc(c.provider.userId, c.provider.user.avatarUpdatedAt) }
-          : { name: c.customer.fullName, avatarUrl: avatarSrc(c.customerId, c.customer.avatarUpdatedAt) },
+          : {
+              name: customerNameForProvider(c.customer.fullName, c.request.order?.providerId === c.providerId),
+              avatarUrl: avatarSrc(c.customerId, c.customer.avatarUpdatedAt),
+            },
       lastMessage: last
         ? { mine: last.senderId === actor.id, body: last.body, attachments: last._count.attachments, createdAt: last.createdAt }
         : null,

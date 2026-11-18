@@ -12,6 +12,7 @@ const LOCKABLE = {
   ProviderProfile: 'SELECT "id" FROM "ProviderProfile" WHERE "id" = $1::uuid FOR UPDATE',
   SupportTicket: 'SELECT "id" FROM "SupportTicket" WHERE "id" = $1::uuid FOR UPDATE',
   Conversation: 'SELECT "id" FROM "Conversation" WHERE "id" = $1::uuid FOR UPDATE',
+  User: 'SELECT "id" FROM "User" WHERE "id" = $1::uuid FOR UPDATE',
 } as const;
 
 export async function lockRow(tx: TxClient, table: keyof typeof LOCKABLE, id: string): Promise<boolean> {

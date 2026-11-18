@@ -147,6 +147,24 @@ enum WalletTransactionReason {
   ORDER_EARNING
   REFUND
   ADJUSTMENT
+  WITHDRAWAL // payout of a provider withdrawal request (manual bank transfer recorded by an admin)
+}
+
+/// Provider withdrawal (manual payout) lifecycle. PENDING and APPROVED reserve the amount on the wallet.
+enum WithdrawalStatus {
+  PENDING // submitted by the provider, waiting for admin review
+  APPROVED // approved by an admin, waiting for the manual bank transfer
+  PAID // admin recorded the completed external transfer; the wallet was debited once
+  REJECTED // rejected by an admin (reason required); reservation released
+  CANCELLED // cancelled by the provider while still pending; reservation released
+}
+
+enum WithdrawalEventType {
+  CREATED
+  APPROVED
+  REJECTED
+  PAID
+  CANCELLED
 }
 
 enum FeaturedPlacement {
@@ -182,6 +200,7 @@ enum NotificationType {
   PAYMENT_FAILED
   TICKET_REPLY
   NEW_MESSAGE
+  WITHDRAWAL_UPDATE
   SYSTEM
 }
 
@@ -221,27 +240,32 @@ model User {
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
-  customerProfile  CustomerProfile?
-  providerProfile  ProviderProfile?
-  addresses        Address[]
-  wallet           Wallet?
-  requests         ServiceRequest[]       @relation("RequestCustomer")
-  customerOrders   Order[]                @relation("OrderCustomer")
-  reviews          Review[]               @relation("ReviewCustomer")
-  subscriptions    Subscription[]
-  payments         Payment[]
-  notifications    Notification[]
-  tickets          SupportTicket[]        @relation("TicketOwner")
-  ticketMessages   TicketMessage[]
-  attachments      RequestAttachment[]
-  requestHistory   RequestStatusHistory[]
-  orderHistory     OrderStatusHistory[]
-  reviewedProfiles ProviderProfile[]      @relation("ProviderReviewer")
-  cancelledOrders  Order[]                @relation("OrderCanceller")
-  featuredCreated  FeaturedProvider[]     @relation("FeaturedCreator")
-  conversations    Conversation[]         @relation("ConversationCustomer")
-  blogPosts        BlogPost[]             @relation("BlogAuthor")
-  messages         Message[]              @relation("MessageSender")
+  customerProfile     CustomerProfile?
+  providerProfile     ProviderProfile?
+  addresses           Address[]
+  wallet              Wallet?
+  requests            ServiceRequest[]       @relation("RequestCustomer")
+  customerOrders      Order[]                @relation("OrderCustomer")
+  reviews             Review[]               @relation("ReviewCustomer")
+  subscriptions       Subscription[]
+  payments            Payment[]
+  notifications       Notification[]
+  tickets             SupportTicket[]        @relation("TicketOwner")
+  ticketMessages      TicketMessage[]
+  attachments         RequestAttachment[]
+  requestHistory      RequestStatusHistory[]
+  orderHistory        OrderStatusHistory[]
+  reviewedProfiles    ProviderProfile[]      @relation("ProviderReviewer")
+  cancelledOrders     Order[]                @relation("OrderCanceller")
+  featuredCreated     FeaturedProvider[]     @relation("FeaturedCreator")
+  conversations       Conversation[]         @relation("ConversationCustomer")
+  blogPosts           BlogPost[]             @relation("BlogAuthor")
+  messages            Message[]              @relation("MessageSender")
+  bankAccount         ProviderBankAccount?
+  withdrawals         WithdrawalRequest[]    @relation("WithdrawalOwner")
+  withdrawalsReviewed WithdrawalRequest[]    @relation("WithdrawalReviewer")
+  withdrawalsPaid     WithdrawalRequest[]    @relation("WithdrawalPayer")
+  withdrawalEvents    WithdrawalEvent[]
 
   @@index([role, status])
   @@index([createdAt])
@@ -775,14 +799,19 @@ model OrderSettlement {
 }
 
 model Wallet {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @unique @db.Uuid
-  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
-  balance   Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @db.Uuid
+  user            User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  /// Total balance (= ledger credits − ledger debits). Only changed by features/finance/wallet.ts.
+  balance         Int      @default(0)
+  /// Sum of the provider's PENDING + APPROVED withdrawals. Available = balance − reservedBalance.
+  /// DB CHECKs: reservedBalance >= 0 and balance >= reservedBalance.
+  reservedBalance Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   transactions WalletTransaction[]
+  withdrawals  WithdrawalRequest[]
 }
 
 model WalletTransaction {
@@ -798,6 +827,9 @@ model WalletTransaction {
   orderId      String?                 @db.Uuid
   order        Order?                  @relation(fields: [orderId], references: [id], onDelete: Restrict)
   description  String?                 @db.VarChar(300)
+  /// Set on the single payout debit of a withdrawal (unique → a withdrawal can never be debited twice).
+  withdrawalId String?                 @unique @db.Uuid
+  withdrawal   WithdrawalRequest?      @relation(fields: [withdrawalId], references: [id], onDelete: Restrict)
   createdAt    DateTime                @default(now())
 
   @@index([walletId, createdAt])
@@ -1028,4 +1060,74 @@ model BlogPost {
 
   @@index([status, publishedAt])
   @@index([categoryId, status, publishedAt])
+}
+
+// ── Provider withdrawals (manual payouts; no bank API — an admin transfers money outside the app) ──
+
+/// Settlement bank account of a provider (one per user). Withdrawals keep their own snapshot.
+model ProviderBankAccount {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @unique @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holderName String   @db.VarChar(120)
+  /// Normalized Iranian IBAN (Sheba): "IR" + 24 digits, checksum-validated.
+  iban       String   @db.VarChar(26)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model WithdrawalRequest {
+  id                 String           @id @default(uuid()) @db.Uuid
+  /// Human-friendly reference shown to providers and admins.
+  code               Int              @unique @default(autoincrement())
+  userId             String           @db.Uuid
+  user               User             @relation("WithdrawalOwner", fields: [userId], references: [id], onDelete: Restrict)
+  walletId           String           @db.Uuid
+  wallet             Wallet           @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  /// Integer Toman, > 0 (DB CHECK).
+  amount             Int
+  status             WithdrawalStatus @default(PENDING)
+  /// Bank details frozen at request time (later account changes never affect this request).
+  ibanSnapshot       String           @db.VarChar(26)
+  holderNameSnapshot String           @db.VarChar(120)
+  /// Client idempotency key: a double-submitted form returns the same request.
+  clientKey          String?          @db.Uuid
+  reviewedById       String?          @db.Uuid
+  reviewedBy         User?            @relation("WithdrawalReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  approvedAt         DateTime?
+  rejectedAt         DateTime?
+  rejectionReason    String?          @db.Text
+  paidById           String?          @db.Uuid
+  paidBy             User?            @relation("WithdrawalPayer", fields: [paidById], references: [id], onDelete: Restrict)
+  paidAt             DateTime?
+  /// Bank transfer tracking code entered by the admin (unique: one transfer cannot settle two requests).
+  payoutReference    String?          @unique @db.VarChar(64)
+  adminNote          String?          @db.Text
+  cancelledAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  walletTransaction WalletTransaction?
+  events            WithdrawalEvent[]
+
+  @@unique([userId, clientKey])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+}
+
+/// Append-only audit trail of withdrawal state changes.
+model WithdrawalEvent {
+  id           String              @id @default(uuid()) @db.Uuid
+  withdrawalId String              @db.Uuid
+  withdrawal   WithdrawalRequest   @relation(fields: [withdrawalId], references: [id], onDelete: Restrict)
+  type         WithdrawalEventType
+  actorId      String              @db.Uuid
+  actor        User                @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  fromStatus   WithdrawalStatus?
+  toStatus     WithdrawalStatus
+  note         String?             @db.Text
+  metadata     Json?
+  createdAt    DateTime            @default(now())
+
+  @@index([withdrawalId, createdAt])
 }

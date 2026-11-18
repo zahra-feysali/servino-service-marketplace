@@ -13,6 +13,7 @@ const LOCKABLE = {
   SupportTicket: 'SELECT "id" FROM "SupportTicket" WHERE "id" = $1::uuid FOR UPDATE',
   Conversation: 'SELECT "id" FROM "Conversation" WHERE "id" = $1::uuid FOR UPDATE',
   User: 'SELECT "id" FROM "User" WHERE "id" = $1::uuid FOR UPDATE',
+  WithdrawalRequest: 'SELECT "id" FROM "WithdrawalRequest" WHERE "id" = $1::uuid FOR UPDATE',
 } as const;
 
 export async function lockRow(tx: TxClient, table: keyof typeof LOCKABLE, id: string): Promise<boolean> {
@@ -20,11 +21,14 @@ export async function lockRow(tx: TxClient, table: keyof typeof LOCKABLE, id: st
   return rows.length > 0;
 }
 
-/** Locks (creating it first if missing) the wallet of a user and returns its current state. */
-export async function lockWallet(tx: TxClient, userId: string): Promise<{ id: string; balance: number }> {
+/**
+ * Locks (creating it first if missing) the wallet of a user and returns its current state.
+ * `reservedBalance` is the amount held by open withdrawal requests; available = balance − reserved.
+ */
+export async function lockWallet(tx: TxClient, userId: string): Promise<{ id: string; balance: number; reservedBalance: number }> {
   await tx.wallet.upsert({ where: { userId }, update: {}, create: { userId } });
-  const rows = await tx.$queryRawUnsafe<{ id: string; balance: number }[]>(
-    'SELECT "id", "balance" FROM "Wallet" WHERE "userId" = $1::uuid FOR UPDATE',
+  const rows = await tx.$queryRawUnsafe<{ id: string; balance: number; reservedBalance: number }[]>(
+    'SELECT "id", "balance", "reservedBalance" FROM "Wallet" WHERE "userId" = $1::uuid FOR UPDATE',
     userId,
   );
   return rows[0];

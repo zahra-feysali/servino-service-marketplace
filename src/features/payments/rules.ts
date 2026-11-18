@@ -85,4 +85,5 @@ export const WALLET_REASON_LABELS = {
   ORDER_EARNING: "سهم متخصص از سفارش (آزادشده)",
   REFUND: "بازگشت وجه",
   ADJUSTMENT: "اصلاح توسط مدیر",
+  WITHDRAWAL: "برداشت (انتقال دستی به حساب بانکی)",
 } as const;

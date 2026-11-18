@@ -234,6 +234,7 @@ model User {
   cancelledOrders  Order[]                @relation("OrderCanceller")
   featuredCreated  FeaturedProvider[]     @relation("FeaturedCreator")
   conversations    Conversation[]         @relation("ConversationCustomer")
+  blogPosts        BlogPost[]             @relation("BlogAuthor")
   messages         Message[]              @relation("MessageSender")
 
   @@index([role, status])
@@ -925,4 +926,75 @@ model MessageAttachment {
   createdAt  DateTime @default(now())
 
   @@index([messageId])
+}
+
+// ── Contact form ─────────────────────────────────────────────────────────────
+
+enum ContactMessageStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
+model ContactMessage {
+  id        String               @id @default(uuid()) @db.Uuid
+  code      Int                  @unique @default(autoincrement())
+  name      String               @db.VarChar(120)
+  phone     String?              @db.VarChar(20)
+  email     String?              @db.VarChar(191)
+  subject   String               @db.VarChar(150)
+  message   String               @db.VarChar(3000)
+  status    ContactMessageStatus @default(NEW)
+  /// Signed-in sender (optional).
+  userId    String?              @db.Uuid
+  readAt    DateTime?
+  createdAt DateTime             @default(now())
+
+  @@index([status, createdAt])
+}
+
+// ── Blog ─────────────────────────────────────────────────────────────────────
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model BlogCategory {
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String     @db.VarChar(80)
+  slug        String     @unique @db.VarChar(100)
+  description String?    @db.VarChar(300)
+  sortOrder   Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  posts       BlogPost[]
+}
+
+model BlogPost {
+  id             String         @id @default(uuid()) @db.Uuid
+  title          String         @db.VarChar(200)
+  slug           String         @unique @db.VarChar(200)
+  excerpt        String         @db.VarChar(500)
+  /// Lightweight markup (paragraphs, ## headings, lists, quotes, **bold**) rendered without raw HTML.
+  content        String         @db.Text
+  /// Uploaded cover in private storage (served via /api/blog-covers/[id]) …
+  coverImageKey  String?        @db.VarChar(80)
+  /// … or a bundled static image under /images (used by seed content).
+  coverImagePath String?        @db.VarChar(200)
+  coverAlt       String?        @db.VarChar(200)
+  status         BlogPostStatus @default(DRAFT)
+  publishedAt    DateTime?
+  readingMinutes Int            @default(1)
+  seoTitle       String?        @db.VarChar(70)
+  seoDescription String?        @db.VarChar(160)
+  categoryId     String?        @db.Uuid
+  category       BlogCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  authorId       String         @db.Uuid
+  author         User           @relation("BlogAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([categoryId, status, publishedAt])
 }

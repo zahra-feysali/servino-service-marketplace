@@ -9,6 +9,8 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, type FormFieldType, type Prisma } from "../src/generated/prisma/client";
+import { readingMinutes } from "../src/features/blog/markup";
+import { BLOG_CATEGORIES, BLOG_POSTS } from "./seed-blog";
 
 if (process.env.NODE_ENV === "production") {
   throw new Error("Refusing to run the development seed with NODE_ENV=production.");
@@ -280,7 +282,7 @@ async function main() {
   }
 
   console.log("Seeding users…");
-  await upsertUser({ fullName: "مدیر سیستم", phone: "09120000000", email: "admin@servino.local", role: "ADMIN", password: ADMIN_PASSWORD });
+  const admin = await upsertUser({ fullName: "مدیر سیستم", phone: "09120000000", email: "admin@servino.local", role: "ADMIN", password: ADMIN_PASSWORD });
 
   const customer = await upsertUser({ fullName: "سارا محمدی", phone: "09120000001", email: "customer@servino.local", role: "CUSTOMER", password: DEMO_PASSWORD });
   await prisma.customerProfile.upsert({ where: { userId: customer.id }, update: {}, create: { userId: customer.id } });
@@ -400,6 +402,37 @@ async function main() {
   };
   for (const [key, value] of Object.entries(settings)) {
     await prisma.siteSetting.upsert({ where: { key }, update: { value: value as never }, create: { key, value: value as never } });
+  }
+
+  // Commission rate: created once (10 %) and never overwritten, so the admin's choice survives re-seeding.
+  await prisma.siteSetting.upsert({ where: { key: "finance.commissionBps" }, update: {}, create: { key: "finance.commissionBps", value: 1000 } });
+
+  console.log("Seeding blog…");
+  const categoryIds = new Map<string, string>();
+  for (const c of BLOG_CATEGORIES) {
+    const row = await prisma.blogCategory.upsert({ where: { slug: c.slug }, update: {}, create: c });
+    categoryIds.set(c.slug, row.id);
+  }
+  for (const p of BLOG_POSTS) {
+    // Created once; later edits made in the admin panel are never overwritten by the seed.
+    await prisma.blogPost.upsert({
+      where: { slug: p.slug },
+      update: {},
+      create: {
+        slug: p.slug,
+        title: p.title,
+        excerpt: p.excerpt,
+        content: p.content,
+        coverImagePath: p.cover,
+        coverAlt: p.coverAlt,
+        seoDescription: p.seoDescription,
+        status: "PUBLISHED",
+        publishedAt: new Date(Date.now() - p.daysAgo * 86_400_000),
+        readingMinutes: readingMinutes(p.content),
+        categoryId: categoryIds.get(p.category) ?? null,
+        authorId: admin.id,
+      },
+    });
   }
 
   console.log("Seed completed.");

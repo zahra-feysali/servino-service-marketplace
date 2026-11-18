@@ -12,8 +12,10 @@ import {
   Landmark,
   LayoutDashboard,
   LifeBuoy,
+  Mail,
   MapPin,
   Megaphone,
+  Newspaper,
   MessageSquareText,
   MessagesSquare,
   PackageCheck,
@@ -120,6 +122,10 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
       ],
     },
     {
+      label: "محتوا",
+      items: [{ href: "/dashboard/admin/blog", label: "بلاگ و مقاله‌ها", icon: Newspaper }],
+    },
+    {
       label: "مالی",
       items: [
         { href: "/dashboard/admin/finance", label: "مالی و کمیسیون", icon: Landmark },
@@ -131,6 +137,7 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
       label: "پشتیبانی و سیستم",
       items: [
         { href: "/dashboard/admin/tickets", label: "تیکت‌ها", icon: LifeBuoy },
+        { href: "/dashboard/admin/contact", label: "پیام‌های تماس", icon: Mail },
         { href: "/dashboard/admin/broadcast", label: "ارسال اعلان", icon: Megaphone },
         { href: "/dashboard/admin/site-settings", label: "تنظیمات سایت", icon: SlidersHorizontal },
         { href: "/dashboard/admin/notifications", label: "اعلان‌های من", icon: Bell, badge: "unread" },

@@ -91,6 +91,8 @@ describe.skipIf(!DB_AVAILABLE)("finance: wallet, order payments and escrow (Post
     const orderIds = (await prisma.order.findMany({ where: { requestId: { in: requestIds } }, select: { id: true } })).map((o) => o.id);
     await prisma.orderSettlement.deleteMany({ where: { orderId: { in: orderIds } } });
     await prisma.walletTransaction.deleteMany({ where: { wallet: { userId: { in: users } } } });
+    await prisma.withdrawalEvent.deleteMany({ where: { withdrawal: { userId: { in: users } } } });
+    await prisma.withdrawalRequest.deleteMany({ where: { userId: { in: users } } });
     await prisma.payment.deleteMany({ where: { userId: { in: users } } });
     await prisma.wallet.deleteMany({ where: { userId: { in: users } } });
     await prisma.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
@@ -224,5 +226,28 @@ describe.skipIf(!DB_AVAILABLE)("finance: wallet, order payments and escrow (Post
     const summary = await getFinanceSummary({});
     expect(summary.commissionEarned).toBeGreaterThanOrEqual(50_000);
     expect(summary.heldGross).toBeGreaterThanOrEqual(100_000);
+  });
+
+  it("lets the provider withdraw released earnings without changing commission or platform revenue", async () => {
+    const { saveBankAccount, requestWithdrawal, approveWithdrawal, markWithdrawalPaid } = await import("@/features/withdrawals/service");
+    const before = await getFinanceSummary({});
+    const balance = await balanceOf(provider.userId);
+    expect(balance).toBeGreaterThan(0); // released order earnings
+
+    // Customers' order payments and pending escrow cannot be withdrawn by the provider: only the wallet balance.
+    await saveBankAccount(provider.userId, { holderName: "متخصص آزمون مالی", iban: "IR050170000000123456789012" });
+    await expect(requestWithdrawal(provider.userId, { amount: balance + 1, clientKey: randomUUID() })).rejects.toThrow();
+    const w = await requestWithdrawal(provider.userId, { amount: balance, clientKey: randomUUID() });
+    await approveWithdrawal(admin.id, w.id);
+    await markWithdrawalPaid(admin.id, w.id, { reference: `FIN-${tag}`, note: null });
+    expect(await balanceOf(provider.userId)).toBe(0);
+
+    const after = await getFinanceSummary({});
+    expect(after.commissionEarned).toBe(before.commissionEarned);
+    expect(after.platformRevenue).toBe(before.platformRevenue); // payouts are not revenue
+    expect(after.payoutsTotal).toBe(before.payoutsTotal + balance);
+
+    const wallet = await prisma.wallet.findUniqueOrThrow({ where: { userId: provider.userId }, include: { transactions: true } });
+    expect(wallet.transactions.reduce((acc, t) => acc + (t.type === "CREDIT" ? t.amount : -t.amount), 0)).toBe(wallet.balance);
   });
 });

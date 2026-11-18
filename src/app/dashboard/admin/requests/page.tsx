@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { PaginationNav } from "@/components/shared/pagination-nav";
 import { parsePage } from "@/lib/pagination";
+import { tehranDateRange } from "@/lib/jalali";
+import { isUuid } from "@/lib/db-locks";
+import { DateRangeFilter } from "@/components/shared/date-range-filter";
+import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "@/components/ui/native-select";
+import { listAllCitiesGrouped } from "@/features/locations/queries";
 import Link from "next/link";
 import { ClipboardList, Flag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -37,8 +42,15 @@ async function RequestsView({ sp }: { sp: Record<string, string | string[] | und
   const status = pickParam(sp.status, STATUSES);
   const flagged = sp.flagged === "1";
   const code = typeof sp.code === "string" && /^\d{1,9}$/.test(sp.code) ? Number(sp.code) : undefined;
-  const requests = await adminListRequests({ status, flagged, code }, parsePage(sp.page));
+  const from = typeof sp.from === "string" ? sp.from : undefined;
+  const to = typeof sp.to === "string" ? sp.to : undefined;
+  const cityId = isUuid(sp.city) ? sp.city : undefined;
+  const [requests, provinces] = await Promise.all([
+    adminListRequests({ status, flagged, code, cityId, ...tehranDateRange(from, to) }, parsePage(sp.page)),
+    listAllCitiesGrouped(),
+  ]);
   const base = "/dashboard/admin/requests";
+  const keep = { status, flagged: flagged ? "1" : undefined, city: cityId, from, to };
 
   return (
     <>
@@ -47,7 +59,7 @@ async function RequestsView({ sp }: { sp: Record<string, string | string[] | und
           basePath={base}
           param="status"
           current={status}
-          extra={{ flagged: flagged ? "1" : undefined }}
+          extra={{ ...keep, status: undefined }}
           options={[{ value: "", label: "همه" }, ...STATUSES.map((s) => ({ value: s, label: REQUEST_STATUS_META[s].label }))]}
         />
         <Button asChild size="sm" variant={flagged ? "destructive" : "outline"}>
@@ -59,6 +71,31 @@ async function RequestsView({ sp }: { sp: Record<string, string | string[] | und
         <form action={base} className="flex gap-2">
           <input name="code" inputMode="numeric" placeholder="شماره درخواست" className="h-8 w-36 rounded-lg border bg-transparent px-2 text-sm" aria-label="جستجوی شماره" />
           <Button size="sm" variant="outline" type="submit">جستجو</Button>
+        </form>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <DateRangeFilter basePath={base} from={from} to={to} keep={{ ...keep, from: undefined, to: undefined }} />
+        <form action={base} method="get" className="flex items-end gap-2" aria-label="فیلتر شهر">
+          {Object.entries({ ...keep, city: undefined }).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
+          <label className="grid gap-1 text-xs text-muted-foreground">
+            شهر
+            <NativeSelect name="city" defaultValue={cityId ?? ""} className="w-44">
+              <NativeSelectOption value="">همه شهرها</NativeSelectOption>
+              {provinces.map((p) => (
+                <NativeSelectOptGroup key={p.id} label={p.name}>
+                  {p.cities.map((c) => (
+                    <NativeSelectOption key={c.id} value={c.id}>
+                      {c.name}
+                      {c.isActive ? "" : " (غیرفعال)"}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelectOptGroup>
+              ))}
+            </NativeSelect>
+          </label>
+          <Button type="submit" variant="outline">
+            اعمال
+          </Button>
         </form>
       </div>
       {requests.items.length === 0 ? (

@@ -9,6 +9,7 @@ import {
   FolderTree,
   Images,
   Inbox,
+  Landmark,
   LayoutDashboard,
   LifeBuoy,
   MapPin,
@@ -51,6 +52,7 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
     {
       label: "حساب",
       items: [
+        { href: "/dashboard/customer/wallet", label: "کیف پول", icon: Wallet },
         { href: "/dashboard/customer/addresses", label: "نشانی‌ها", icon: MapPin },
         { href: "/dashboard/customer/notifications", label: "اعلان‌ها", icon: Bell, badge: "unread" },
         { href: "/dashboard/customer/tickets", label: "پشتیبانی", icon: LifeBuoy },
@@ -117,6 +119,7 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
     {
       label: "مالی",
       items: [
+        { href: "/dashboard/admin/finance", label: "مالی و کمیسیون", icon: Landmark },
         { href: "/dashboard/admin/plans", label: "پلن‌ها و اشتراک‌ها", icon: BadgeCheck },
         { href: "/dashboard/admin/payments", label: "پرداخت‌ها و تراکنش‌ها", icon: Receipt },
       ],

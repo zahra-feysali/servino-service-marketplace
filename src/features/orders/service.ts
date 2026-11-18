@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { AppError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { lockRow } from "@/lib/db-locks";
 import { notify } from "@/features/notifications/service";
+import { applySettlementForOrderStatus } from "@/features/finance/service";
+import { requiresPaymentBefore, settlementActionFor } from "@/features/finance/rules";
 import type { AppRole } from "@/features/auth/rbac";
 import { ORDER_STATUS_META } from "./labels";
 import { checkTransition, timestampFieldFor, type OrderStatus } from "./state-machine";
@@ -35,6 +37,7 @@ export async function changeOrderStatus(
         customerId: true,
         requestId: true,
         providerId: true,
+        paymentStatus: true,
         provider: { select: { userId: true } },
       },
     });
@@ -46,6 +49,10 @@ export async function changeOrderStatus(
 
     const check = checkTransition(order.status, to, actor.role, note);
     if (!check.ok) throw new AppError(TRANSITION_ERRORS[check.reason], check.reason);
+    // Escrow: the provider may only start (and the order may only complete) once the customer has paid.
+    if (requiresPaymentBefore(to) && order.paymentStatus !== "PAID") {
+      throw new AppError("ابتدا مشتری باید هزینه سفارش را پرداخت کند (کیف پول یا درگاه).", "PAYMENT_REQUIRED");
+    }
 
     const now = new Date();
     const stamp = timestampFieldFor(to);
@@ -77,6 +84,10 @@ export async function changeOrderStatus(
       });
     }
 
+    // Escrow side effects in the same transaction: release provider share or refund the customer.
+    const settlementAction = settlementActionFor(to);
+    if (settlementAction) await applySettlementForOrderStatus(tx, orderId, to as "COMPLETED" | "CANCELLED", note);
+
     const label = ORDER_STATUS_META[to].label;
     const recipients = [
       { userId: order.customerId, link: `/dashboard/customer/orders/${orderId}` },
@@ -107,6 +118,7 @@ const orderListSelect = {
   provider: { select: { displayName: true } },
   customer: { select: { fullName: true } },
   review: { select: { id: true } },
+  paymentStatus: true,
 } as const;
 
 export async function listCustomerOrders(customerId: string) {
@@ -155,6 +167,11 @@ export async function getOrderDetail(
       provider: { select: { id: true, displayName: true, ratingAverage: true, ratingCount: true, user: { select: { phone: true } } } },
       history: { orderBy: { createdAt: "asc" }, select: { id: true, fromStatus: true, toStatus: true, note: true, createdAt: true } },
       review: { select: { id: true, rating: true, comment: true, createdAt: true, status: true } },
+      paymentStatus: true,
+      paidAt: true,
+      settlement: {
+        select: { status: true, grossAmount: true, commissionRateBps: true, commissionAmount: true, providerAmount: true, heldAt: true, releasedAt: true, refundedAt: true },
+      },
     },
   });
 }

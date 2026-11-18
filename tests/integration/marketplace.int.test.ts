@@ -13,6 +13,7 @@ describe.skipIf(!DB_AVAILABLE)("core marketplace workflow (PostgreSQL)", async (
   const { submitOffer, selectOffer, withdrawOffer } = await import("@/features/offers/service");
   const { changeOrderStatus } = await import("@/features/orders/service");
   const { submitReview } = await import("@/features/reviews/service");
+  const { payOrderWithWallet } = await import("@/features/finance/service");
 
   const tag = randomUUID().slice(0, 8);
   const ids = {} as Record<string, string>;
@@ -91,6 +92,10 @@ describe.skipIf(!DB_AVAILABLE)("core marketplace workflow (PostgreSQL)", async (
     const requestIds = (await prisma.serviceRequest.findMany({ where: { serviceId: ids.service }, select: { id: true } })).map((r) => r.id);
     const orderIds = (await prisma.order.findMany({ where: { requestId: { in: requestIds } }, select: { id: true } })).map((o) => o.id);
     await prisma.review.deleteMany({ where: { orderId: { in: orderIds } } });
+    await prisma.orderSettlement.deleteMany({ where: { orderId: { in: orderIds } } });
+    await prisma.walletTransaction.deleteMany({ where: { wallet: { userId: { in: users } } } });
+    await prisma.payment.deleteMany({ where: { userId: { in: users } } });
+    await prisma.wallet.deleteMany({ where: { userId: { in: users } } });
     await prisma.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
     await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
     await prisma.providerOffer.deleteMany({ where: { requestId: { in: requestIds } } });
@@ -197,6 +202,10 @@ describe.skipIf(!DB_AVAILABLE)("core marketplace workflow (PostgreSQL)", async (
     await expect(changeOrderStatus(providerUser, order.id, "PROVIDER_COMPLETED")).rejects.toThrow();
 
     await changeOrderStatus(providerUser, order.id, "ACCEPTED");
+    // Work cannot start before the customer pays (escrow).
+    await expect(changeOrderStatus(providerUser, order.id, "IN_PROGRESS")).rejects.toThrow("پرداخت");
+    await prisma.wallet.upsert({ where: { userId: customer.id }, update: { balance: order.price }, create: { userId: customer.id, balance: order.price } });
+    await payOrderWithWallet(customer.id, order.id);
     await changeOrderStatus(providerUser, order.id, "IN_PROGRESS");
     await changeOrderStatus(providerUser, order.id, "PROVIDER_COMPLETED");
     await expect(submitReview(customer.id, order.id, { rating: 5 })).rejects.toThrow();

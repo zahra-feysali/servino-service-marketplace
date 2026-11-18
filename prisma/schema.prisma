@@ -113,6 +113,20 @@ enum PaymentPurpose {
   SUBSCRIPTION
   FEATURED_PLACEMENT
   WALLET_TOPUP
+  ORDER // customer pays an order (escrow until completion)
+}
+
+enum OrderPaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}
+
+/// Escrow state of the provider share of a paid order.
+enum SettlementStatus {
+  HELD // paid by the customer, waiting for completion
+  RELEASED // order completed: provider share credited to the provider wallet, commission earned
+  REFUNDED // order cancelled: full amount returned to the customer wallet
 }
 
 enum PaymentGateway {
@@ -127,6 +141,7 @@ enum WalletTransactionType {
 
 enum WalletTransactionReason {
   TOP_UP
+  ORDER_PAYMENT
   SUBSCRIPTION_PURCHASE
   FEATURED_PURCHASE
   ORDER_EARNING
@@ -247,16 +262,17 @@ model ProviderProfile {
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
 
-  services  ProviderService[]
-  areas     ServiceArea[]
-  skills    ProviderSkill[]
-  portfolio PortfolioItem[]
-  documents ProviderDocument[]
-  offers    ProviderOffer[]
-  orders    Order[]            @relation("OrderProvider")
-  reviews   Review[]           @relation("ReviewProvider")
-  matches   RequestMatch[]
-  featured  FeaturedProvider[]
+  services    ProviderService[]
+  areas       ServiceArea[]
+  skills      ProviderSkill[]
+  portfolio   PortfolioItem[]
+  documents   ProviderDocument[]
+  offers      ProviderOffer[]
+  orders      Order[]            @relation("OrderProvider")
+  reviews     Review[]           @relation("ReviewProvider")
+  matches     RequestMatch[]
+  featured    FeaturedProvider[]
+  settlements OrderSettlement[]
 
   @@index([verificationStatus])
   @@index([ratingAverage])
@@ -589,6 +605,11 @@ model Order {
   review             Review?
   walletTransactions WalletTransaction[]
   tickets            SupportTicket[]
+  /// Online payment state (customer pays through wallet or gateway; money is held until completion).
+  paymentStatus      OrderPaymentStatus   @default(UNPAID)
+  paidAt             DateTime?
+  payments           Payment[]
+  settlement         OrderSettlement?
 
   @@index([customerId, status])
   @@index([providerId, status])
@@ -694,6 +715,9 @@ model Payment {
   subscription       Subscription?     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
   featuredProviderId String?           @db.Uuid
   featuredProvider   FeaturedProvider? @relation(fields: [featuredProviderId], references: [id], onDelete: Restrict)
+  orderId            String?           @db.Uuid
+  order              Order?            @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  settlement         OrderSettlement?
   paidAt             DateTime?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
@@ -702,6 +726,36 @@ model Payment {
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  @@index([orderId])
+}
+
+/// One per paid order. Commission rate is frozen at payment time, so later rate changes never affect it.
+/// Invariant: commissionAmount + providerAmount = grossAmount.
+model OrderSettlement {
+  id                String           @id @default(uuid()) @db.Uuid
+  orderId           String           @unique @db.Uuid
+  order             Order            @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  paymentId         String           @unique @db.Uuid
+  payment           Payment          @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  providerId        String           @db.Uuid
+  provider          ProviderProfile  @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  customerId        String           @db.Uuid
+  grossAmount       Int
+  /// Commission in basis points (1000 = 10%).
+  commissionRateBps Int
+  commissionAmount  Int
+  providerAmount    Int
+  status            SettlementStatus @default(HELD)
+  heldAt            DateTime         @default(now())
+  releasedAt        DateTime?
+  refundedAt        DateTime?
+  note              String?          @db.Text
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([status, heldAt])
+  @@index([providerId, status])
+  @@index([customerId])
 }
 
 model Wallet {

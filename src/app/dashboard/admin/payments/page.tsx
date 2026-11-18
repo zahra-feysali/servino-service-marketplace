@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { PaginationNav } from "@/components/shared/pagination-nav";
 import { parsePage } from "@/lib/pagination";
+import { tehranDateRange } from "@/lib/jalali";
+import { DateRangeFilter } from "@/components/shared/date-range-filter";
 import { FlaskConical } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FilterLinks, pickParam } from "@/components/shared/filter-links";
@@ -21,7 +23,9 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps<"/da
   const base = "/dashboard/admin/payments";
   const page = parsePage(sp.page);
   const wallet = view === "wallet" ? await adminListWalletTransactions(page) : null;
-  const payments = view === "wallet" ? null : await adminListPayments({ status }, page);
+  const from = typeof sp.from === "string" ? sp.from : undefined;
+  const to = typeof sp.to === "string" ? sp.to : undefined;
+  const payments = view === "wallet" ? null : await adminListPayments({ status, ...tehranDateRange(from, to) }, page);
 
   return (
     <>
@@ -37,10 +41,12 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps<"/da
         />
       ) : (
         <>
+          <DateRangeFilter basePath={base} from={from} to={to} keep={{ status }} />
           <FilterLinks
             basePath={base}
             param="status"
             current={status}
+            extra={{ from, to }}
             options={[{ value: "", label: "همه" }, ...STATUSES.map((s) => ({ value: s, label: PAYMENT_STATUS_META[s].label }))]}
           />
           <PaymentsTable payments={payments!.items} />

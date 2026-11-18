@@ -12,11 +12,11 @@ locally; 165/165 tests passing; all 4 original phases complete.
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| 1 | Design system & global UI refresh (palette, tokens, components) | Not Started | |
-| 2 | Customer wallet, order payment (wallet / simulated gateway), commission, escrow & release, admin finance | Not Started | |
+| 1 | Design system & global UI refresh (palette, tokens, components) | In Progress | Tokens (`globals.css`), Card/Table/PageHeader/StatCard/EmptyState, dashboard shell committed (`bdf2b3c`). Page-level redesign continues with later items. |
+| 2 | Customer wallet, order payment (wallet / simulated gateway), commission, escrow & release, admin finance | Tested | Migration `20261118085453_finance_order_payments` (applied). `features/finance/*`, `payments/service.settlePayment` (idempotent, gateway-agnostic), customer wallet page, `/dashboard/admin/finance`. Tests: `tests/unit/finance-jalali.test.ts`, `tests/integration/finance.int.test.ts` (8 DB tests: top-up, wallet/gateway pay, frozen commission, release, refund, concurrency, stale callback). Refunds go to the customer wallet (no real card refunds — gateway is simulated). |
 | 3 | Profile pictures for all users | Not Started | |
 | 4 | Multi-file upload fix (all upload forms) | Not Started | |
-| 5 | Jalali (Persian) calendar: pickers, filters, display, conversion tests | Not Started | |
+| 5 | Jalali (Persian) calendar: pickers, filters, display, conversion tests | Tested | `lib/jalali.ts` (jalaali-js 2.0.1), `JalaliDatePicker`, `DateRangeFilter` (admin requests/orders/payments/finance; Tehran day boundaries). All date inputs replaced; DB stays Gregorian. Unit tests incl. 5-year day-by-day cross-check with Intl. |
 | 6 | Header account menu (avatar, name, role) | Not Started | |
 | 7 | Customer ↔ provider chat (text, images, files, read state, unread counts, notifications) | Not Started | |
 | 8 | About us & Contact us (contact form stored, admin inbox) | Not Started | |

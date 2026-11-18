@@ -75,7 +75,10 @@ describe.skipIf(!DB_AVAILABLE)("business features (PostgreSQL)", async () => {
 
     await expect(completeSimulatedPayment(customer.id, r.paymentId, "SUCCESS")).rejects.toThrow();
     await completeSimulatedPayment(provider.id, r.paymentId, "SUCCESS");
-    await expect(completeSimulatedPayment(provider.id, r.paymentId, "SUCCESS")).rejects.toThrow();
+    // A repeated callback is idempotent: it reports the existing result and changes nothing.
+    await expect(completeSimulatedPayment(provider.id, r.paymentId, "SUCCESS")).resolves.toMatchObject({ status: "SUCCEEDED", alreadySettled: true });
+    await expect(completeSimulatedPayment(provider.id, r.paymentId, "FAIL")).resolves.toMatchObject({ status: "SUCCEEDED", alreadySettled: true });
+    expect(await prisma.subscription.count({ where: { userId: provider.id, status: "ACTIVE" } })).toBe(1);
 
     const active = await prisma.subscription.findUniqueOrThrow({ where: { id: pending.id } });
     expect(active.status).toBe("ACTIVE");

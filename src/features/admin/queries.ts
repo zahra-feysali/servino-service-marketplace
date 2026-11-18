@@ -6,8 +6,13 @@ import type { OrderStatus, RequestStatus, ReviewStatus } from "@/generated/prism
 
 /** Admin read models for requests, offers, orders and reviews (paginated). ADMIN role is checked by callers. */
 
-export async function adminListRequests(filter: { status?: RequestStatus; flagged?: boolean; code?: number }, page = 1) {
+type DateRange = { from?: Date; to?: Date };
+const createdIn = (r: DateRange) => (r.from || r.to ? { createdAt: { ...(r.from ? { gte: r.from } : {}), ...(r.to ? { lt: r.to } : {}) } } : {});
+
+export async function adminListRequests(filter: { status?: RequestStatus; flagged?: boolean; code?: number; cityId?: string } & DateRange, page = 1) {
   const where: Prisma.ServiceRequestWhereInput = {
+    ...createdIn(filter),
+    ...(filter.cityId ? { cityId: filter.cityId } : {}),
     ...(filter.status ? { status: filter.status } : {}),
     ...(filter.flagged ? { isFlagged: true } : {}),
     ...(filter.code ? { code: filter.code } : {}),
@@ -67,8 +72,8 @@ export async function adminListOffers(status: "PENDING" | "ACCEPTED" | "REJECTED
   return toPaginated(items, total, page);
 }
 
-export async function adminListOrders(status: OrderStatus | undefined, page = 1) {
-  const where: Prisma.OrderWhereInput = status ? { status } : {};
+export async function adminListOrders(status: OrderStatus | undefined, page = 1, range: DateRange = {}) {
+  const where: Prisma.OrderWhereInput = { ...(status ? { status } : {}), ...createdIn(range) };
   const [items, total] = await Promise.all([
     prisma.order.findMany({
       where,
@@ -77,7 +82,7 @@ export async function adminListOrders(status: OrderStatus | undefined, page = 1)
       select: {
         id: true, code: true, status: true, price: true, createdAt: true, updatedAt: true,
         service: { select: { name: true } }, request: { select: { code: true, city: { select: { name: true } } } },
-        provider: { select: { displayName: true } }, customer: { select: { fullName: true } }, review: { select: { id: true } },
+        provider: { select: { displayName: true } }, customer: { select: { fullName: true } }, review: { select: { id: true } }, paymentStatus: true,
       },
     }),
     prisma.order.count({ where }),

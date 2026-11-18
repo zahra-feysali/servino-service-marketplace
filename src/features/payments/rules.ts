@@ -69,6 +69,7 @@ export const PAYMENT_PURPOSE_LABELS = {
   SUBSCRIPTION: "خرید اشتراک",
   FEATURED_PLACEMENT: "نمایش ویژه",
   WALLET_TOPUP: "شارژ کیف پول",
+  ORDER: "پرداخت سفارش",
 } as const;
 
 export const PAYMENT_GATEWAY_LABELS = {
@@ -78,9 +79,10 @@ export const PAYMENT_GATEWAY_LABELS = {
 
 export const WALLET_REASON_LABELS = {
   TOP_UP: "شارژ کیف پول",
+  ORDER_PAYMENT: "پرداخت سفارش",
   SUBSCRIPTION_PURCHASE: "خرید اشتراک",
   FEATURED_PURCHASE: "نمایش ویژه",
-  ORDER_EARNING: "درآمد سفارش",
+  ORDER_EARNING: "سهم متخصص از سفارش (آزادشده)",
   REFUND: "بازگشت وجه",
   ADJUSTMENT: "اصلاح توسط مدیر",
 } as const;

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Star } from "lucide-react";
 import { OrderDetail } from "@/features/orders/components/order-detail";
 import { getOrderDetail } from "@/features/orders/service";
+import { getWalletBalance } from "@/features/payments/service";
 import { ReviewForm } from "@/features/reviews/components/review-form";
 import { isUuid } from "@/lib/db-locks";
 import { requireRolePage } from "@/lib/authz";
@@ -32,5 +33,6 @@ export default async function CustomerOrderPage({ params }: PageProps<"/dashboar
       <ReviewForm orderId={order.id} />
     );
 
-  return <OrderDetail order={order} viewerRole="CUSTOMER" reviewSlot={reviewSlot} />;
+  const wallet = await getWalletBalance(user.id);
+  return <OrderDetail order={order} viewerRole="CUSTOMER" reviewSlot={reviewSlot} walletBalance={wallet} />;
 }

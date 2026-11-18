@@ -7,8 +7,6 @@ import { fail, ok, toActionError, type ActionResult } from "@/lib/errors";
 import { isUuid } from "@/lib/db-locks";
 import { num, str, strs } from "@/lib/form-data";
 import { reportRequestByProvider } from "@/features/admin/service";
-import { createTopUp, completeSimulatedPayment } from "@/features/payments/service";
-import { topUpSchema } from "@/features/payments/rules";
 import { purchaseSubscription } from "@/features/subscriptions/service";
 import * as profile from "./profile-service";
 import { profileInputSchema, skillInputSchema } from "./verification";
@@ -139,30 +137,6 @@ export async function purchaseSubscriptionAction(planId: string, method: "WALLET
     return r.status === "PENDING"
       ? ok({ redirectTo: `/payment/${r.paymentId}` }, "به درگاه پرداخت شبیه‌سازی‌شده منتقل می‌شوید.")
       : ok({ redirectTo: "/dashboard/provider/subscription" }, "اشتراک با موفقیت خریداری و فعال شد.");
-  } catch (e) {
-    return toActionError(e);
-  }
-}
-
-export async function createTopUpAction(formData: FormData): Promise<ActionResult<{ redirectTo: string }>> {
-  try {
-    const user = await requireRole("PROVIDER");
-    const parsed = topUpSchema.safeParse({ amount: num(formData, "amount") });
-    if (!parsed.success) return fail(INVALID, z.flattenError(parsed.error).fieldErrors);
-    const payment = await createTopUp(user.id, parsed.data.amount);
-    return ok({ redirectTo: `/payment/${payment.id}` });
-  } catch (e) {
-    return toActionError(e);
-  }
-}
-
-export async function completePaymentAction(paymentId: string, outcome: "SUCCESS" | "FAIL"): Promise<ActionResult<{ redirectTo: string }>> {
-  try {
-    const user = await requireRole("PROVIDER");
-    if (!isUuid(paymentId) || (outcome !== "SUCCESS" && outcome !== "FAIL")) return fail(INVALID);
-    const r = await completeSimulatedPayment(user.id, paymentId, outcome);
-    refresh();
-    return ok({ redirectTo: `/payment/${paymentId}` }, r.status === "SUCCEEDED" ? "پرداخت (شبیه‌سازی‌شده) موفق بود." : "پرداخت ناموفق ثبت شد.");
   } catch (e) {
     return toActionError(e);
   }

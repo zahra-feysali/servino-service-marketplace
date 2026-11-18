@@ -2,11 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { pageArgs, toPaginated } from "@/lib/pagination";
 import type { Prisma } from "@/generated/prisma/client";
 import { AppError, ForbiddenError, NotFoundError } from "@/lib/errors";
-import { lockRow, lockWallet } from "@/lib/db-locks";
+import { lockRow } from "@/lib/db-locks";
+import { applyOrderPayment } from "@/features/finance/service";
+import { creditWallet } from "@/features/finance/wallet";
 import { notify } from "@/features/notifications/service";
 import { activateSubscription } from "@/features/subscriptions/service";
 import { formatPrice } from "@/lib/utils";
-import { canCompleteSimulatedPayment, simulatedPaymentsEnabled, simulatedTrackingCode, walletBalanceAfterCredit } from "./rules";
+import { canCompleteSimulatedPayment, simulatedPaymentsEnabled, simulatedTrackingCode } from "./rules";
 
 /** Creates a PENDING simulated top-up payment for the user's wallet. */
 export async function createTopUp(userId: string, amount: number) {
@@ -19,57 +21,85 @@ export async function createTopUp(userId: string, amount: number) {
   });
 }
 
+/** Where the payer should look after a payment of this purpose (role-aware). */
+function paymentLink(purpose: string, role: string): string {
+  const base = role === "PROVIDER" ? "/dashboard/provider" : "/dashboard/customer";
+  if (purpose === "SUBSCRIPTION") return "/dashboard/provider/subscription";
+  if (purpose === "FEATURED_PLACEMENT") return "/dashboard/provider/featured";
+  if (purpose === "ORDER") return `${base}/orders`;
+  return `${base}/wallet`;
+}
+
 /**
- * Completes a simulated gateway payment. The decision (success/failure) is recorded
- * server-side in one transaction with the payment row locked, so a payment can only
- * be settled once and side effects (subscription activation / wallet credit) happen
- * exactly once together with it.
+ * Gateway-independent settlement of a PENDING payment. This is the single entry point for
+ * deciding a payment's outcome: the simulated gateway page calls it today; a real gateway
+ * callback/verify route can call it later without changing the finance logic.
+ *
+ * - Runs in one transaction with the payment row locked.
+ * - Idempotent: if the payment is already settled, nothing is applied again and the current
+ *   status is returned (protects against duplicate callbacks / double clicks).
+ * - Side effects happen exactly once together with the status change: subscription activation,
+ *   wallet top-up credit, or order payment (escrow settlement).
  */
-export async function completeSimulatedPayment(userId: string, paymentId: string, outcome: "SUCCESS" | "FAIL") {
-  if (!simulatedPaymentsEnabled()) {
-    throw new AppError("درگاه پرداخت شبیه‌سازی‌شده در این محیط غیرفعال است.", "SIMULATION_DISABLED");
-  }
+export async function settlePayment(paymentId: string, outcome: "SUCCESS" | "FAIL", opts: { expectedUserId?: string; gatewayRef?: string } = {}) {
   return prisma.$transaction(async (tx) => {
     if (!(await lockRow(tx, "Payment", paymentId))) throw new NotFoundError("پرداخت یافت نشد.");
     const payment = await tx.payment.findUniqueOrThrow({
       where: { id: paymentId },
-      select: { id: true, code: true, userId: true, status: true, gateway: true, purpose: true, amount: true, subscriptionId: true },
+      select: {
+        id: true, code: true, userId: true, status: true, gateway: true, purpose: true, amount: true, subscriptionId: true, orderId: true,
+        user: { select: { role: true } },
+      },
     });
-    const error = canCompleteSimulatedPayment(payment, userId);
-    if (error === "NOT_OWNER") throw new ForbiddenError();
-    if (error) throw new AppError("این پرداخت قبلاً تعیین وضعیت شده است.", error);
+    if (opts.expectedUserId && payment.userId !== opts.expectedUserId) throw new ForbiddenError();
+    if (payment.status !== "PENDING") return { status: payment.status, alreadySettled: true as const };
 
-    const link = payment.purpose === "SUBSCRIPTION" ? "/dashboard/provider/subscription" : "/dashboard/provider/wallet";
+    const link = paymentLink(payment.purpose, payment.user.role);
 
     if (outcome === "FAIL") {
-      await tx.payment.update({ where: { id: paymentId }, data: { status: "FAILED", failureReason: "پرداخت در درگاه شبیه‌سازی‌شده ناموفق بود." } });
+      await tx.payment.update({ where: { id: paymentId }, data: { status: "FAILED", failureReason: "پرداخت در درگاه ناموفق بود." } });
       if (payment.subscriptionId) {
         await tx.subscription.updateMany({ where: { id: payment.subscriptionId, status: "PENDING" }, data: { status: "CANCELLED", cancelledAt: new Date() } });
       }
-      await notify(tx, [{ userId, type: "PAYMENT_FAILED", title: `پرداخت ${payment.code} ناموفق بود`, body: formatPrice(payment.amount), link }]);
-      return { status: "FAILED" as const };
+      await notify(tx, [{ userId: payment.userId, type: "PAYMENT_FAILED", title: `پرداخت ${payment.code} ناموفق بود`, body: formatPrice(payment.amount), link }]);
+      return { status: "FAILED" as const, alreadySettled: false as const };
     }
 
     await tx.payment.update({
       where: { id: paymentId },
-      data: { status: "SUCCEEDED", paidAt: new Date(), trackingCode: simulatedTrackingCode() },
+      data: { status: "SUCCEEDED", paidAt: new Date(), trackingCode: opts.gatewayRef ?? simulatedTrackingCode() },
     });
 
     if (payment.purpose === "SUBSCRIPTION") {
       if (!payment.subscriptionId) throw new AppError("اشتراک مرتبط با پرداخت یافت نشد.", "INVALID_STATE");
       await activateSubscription(tx, payment.subscriptionId);
     } else if (payment.purpose === "WALLET_TOPUP") {
-      const wallet = await lockWallet(tx, userId);
-      const balance = walletBalanceAfterCredit(wallet.balance, payment.amount);
-      await tx.wallet.update({ where: { id: wallet.id }, data: { balance } });
-      await tx.walletTransaction.create({
-        data: { walletId: wallet.id, type: "CREDIT", reason: "TOP_UP", amount: payment.amount, balanceAfter: balance, paymentId, description: "شارژ کیف پول (شبیه‌سازی‌شده)" },
-      });
+      await creditWallet(tx, payment.userId, payment.amount, "TOP_UP", { paymentId, description: "شارژ کیف پول (شبیه‌سازی‌شده)" });
+    } else if (payment.purpose === "ORDER") {
+      if (!payment.orderId) throw new AppError("سفارش مرتبط با پرداخت یافت نشد.", "INVALID_STATE");
+      await applyOrderPayment(tx, payment.orderId, payment);
     }
 
-    await notify(tx, [{ userId, type: "PAYMENT_SUCCEEDED", title: `پرداخت ${payment.code} موفق بود`, body: formatPrice(payment.amount), link }]);
-    return { status: "SUCCEEDED" as const };
+    await notify(tx, [{ userId: payment.userId, type: "PAYMENT_SUCCEEDED", title: `پرداخت ${payment.code} موفق بود`, body: formatPrice(payment.amount), link }]);
+    return { status: "SUCCEEDED" as const, alreadySettled: false as const };
   });
+}
+
+/**
+ * The simulated gateway page: only the payer can decide the outcome, only for SIMULATED payments,
+ * and only when simulated payments are enabled (development, or explicitly allowed).
+ */
+export async function completeSimulatedPayment(userId: string, paymentId: string, outcome: "SUCCESS" | "FAIL") {
+  if (!simulatedPaymentsEnabled()) {
+    throw new AppError("درگاه پرداخت شبیه‌سازی‌شده در این محیط غیرفعال است.", "SIMULATION_DISABLED");
+  }
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId }, select: { userId: true, status: true, gateway: true } });
+  if (!payment) throw new NotFoundError("پرداخت یافت نشد.");
+  const error = canCompleteSimulatedPayment(payment, userId);
+  if (error === "NOT_OWNER") throw new ForbiddenError();
+  if (error === "WRONG_GATEWAY") throw new AppError("این پرداخت از درگاه شبیه‌سازی‌شده نیست.", error);
+  // NOT_PENDING falls through: settlePayment is idempotent and reports the current status.
+  return settlePayment(paymentId, outcome, { expectedUserId: userId });
 }
 
 export async function getPaymentForUser(userId: string, paymentId: string) {
@@ -79,8 +109,15 @@ export async function getPaymentForUser(userId: string, paymentId: string) {
       id: true, code: true, amount: true, purpose: true, status: true, gateway: true, isSimulated: true, trackingCode: true,
       failureReason: true, paidAt: true, createdAt: true,
       subscription: { select: { plan: { select: { name: true } } } },
+      order: { select: { id: true, code: true } },
+      user: { select: { role: true } },
     },
   });
+}
+
+export async function getWalletBalance(userId: string): Promise<number> {
+  const wallet = await prisma.wallet.findUnique({ where: { userId }, select: { balance: true } });
+  return wallet?.balance ?? 0;
 }
 
 export async function getWalletOverview(userId: string) {
@@ -107,10 +144,14 @@ export async function getWalletOverview(userId: string) {
 // ── Admin ────────────────────────────────────────────────────────────────────
 
 export async function adminListPayments(
-  filter: { status?: "PENDING" | "SUCCEEDED" | "FAILED"; purpose?: "SUBSCRIPTION" | "FEATURED_PLACEMENT" | "WALLET_TOPUP" },
+  filter: { status?: "PENDING" | "SUCCEEDED" | "FAILED"; purpose?: "SUBSCRIPTION" | "FEATURED_PLACEMENT" | "WALLET_TOPUP" | "ORDER"; from?: Date; to?: Date },
   page = 1,
 ) {
-  const where: Prisma.PaymentWhereInput = { ...(filter.status ? { status: filter.status } : {}), ...(filter.purpose ? { purpose: filter.purpose } : {}) };
+  const where: Prisma.PaymentWhereInput = {
+    ...(filter.status ? { status: filter.status } : {}),
+    ...(filter.purpose ? { purpose: filter.purpose } : {}),
+    ...(filter.from || filter.to ? { createdAt: { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lt: filter.to } : {}) } } : {}),
+  };
   const [items, total] = await Promise.all([
     prisma.payment.findMany({
       where,

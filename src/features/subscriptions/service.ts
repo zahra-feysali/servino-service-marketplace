@@ -1,10 +1,11 @@
 import { prisma, type TxClient } from "@/lib/prisma";
 import { pageArgs, toPaginated } from "@/lib/pagination";
 import { AppError, ForbiddenError, NotFoundError } from "@/lib/errors";
-import { lockRow, lockWallet } from "@/lib/db-locks";
+import { lockRow } from "@/lib/db-locks";
+import { debitWallet } from "@/features/finance/wallet";
 import { notify } from "@/features/notifications/service";
-import { simulatedTrackingCode, walletBalanceAfterDebit } from "@/features/payments/rules";
-import { formatDate, formatPrice } from "@/lib/utils";
+import { simulatedTrackingCode } from "@/features/payments/rules";
+import { formatDate } from "@/lib/utils";
 import { computeSubscriptionWindow, extendEndDate, planToSnapshot } from "./lifecycle";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -99,13 +100,6 @@ export async function purchaseSubscription(userId: string, planId: string, metho
       return { paymentId: payment.id, status: "PENDING" as const };
     }
 
-    const wallet = await lockWallet(tx, userId);
-    let newBalance: number;
-    try {
-      newBalance = walletBalanceAfterDebit(wallet.balance, plan.price);
-    } catch {
-      throw new AppError(`موجودی کیف پول کافی نیست (موجودی: ${formatPrice(wallet.balance)}).`, "INSUFFICIENT_BALANCE");
-    }
     const payment = await tx.payment.create({
       data: {
         userId, amount: plan.price, purpose: "SUBSCRIPTION", status: "SUCCEEDED", gateway: "WALLET", isSimulated: true,
@@ -113,13 +107,8 @@ export async function purchaseSubscription(userId: string, planId: string, metho
       },
       select: { id: true },
     });
-    await tx.wallet.update({ where: { id: wallet.id }, data: { balance: newBalance } });
-    await tx.walletTransaction.create({
-      data: {
-        walletId: wallet.id, type: "DEBIT", reason: "SUBSCRIPTION_PURCHASE", amount: plan.price, balanceAfter: newBalance,
-        paymentId: payment.id, description: `خرید اشتراک ${plan.name}`,
-      },
-    });
+    // Throws INSUFFICIENT_BALANCE (rolling back the whole purchase) if the wallet cannot cover it.
+    await debitWallet(tx, userId, plan.price, "SUBSCRIPTION_PURCHASE", { paymentId: payment.id, description: `خرید اشتراک ${plan.name}` });
     await activateSubscription(tx, subscription.id);
     return { paymentId: payment.id, status: "SUCCEEDED" as const };
   });

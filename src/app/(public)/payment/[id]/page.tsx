@@ -10,7 +10,7 @@ import { ActionButton } from "@/components/shared/action-button";
 import { getCurrentUserSafe } from "@/features/auth/current-user-safe";
 import { PAYMENT_GATEWAY_LABELS, PAYMENT_PURPOSE_LABELS, PAYMENT_STATUS_META } from "@/features/payments/rules";
 import { getPaymentForUser } from "@/features/payments/service";
-import { completePaymentAction } from "@/features/providers/actions";
+import { completePaymentAction } from "@/features/payments/actions";
 import { isUuid } from "@/lib/db-locks";
 import { formatDateTime, formatPrice, toPersianDigits } from "@/lib/utils";
 
@@ -29,7 +29,15 @@ export default async function PaymentPage({ params }: PageProps<"/payment/[id]">
   if (!payment) notFound();
 
   const meta = PAYMENT_STATUS_META[payment.status];
-  const back = payment.purpose === "SUBSCRIPTION" ? "/dashboard/provider/subscription" : "/dashboard/provider/wallet";
+  const base = payment.user.role === "PROVIDER" ? "/dashboard/provider" : "/dashboard/customer";
+  const back =
+    payment.purpose === "SUBSCRIPTION"
+      ? "/dashboard/provider/subscription"
+      : payment.purpose === "FEATURED_PLACEMENT"
+        ? "/dashboard/provider/featured"
+        : payment.purpose === "ORDER" && payment.order
+          ? `${base}/orders/${payment.order.id}`
+          : `${base}/wallet`;
 
   return (
     <div className="mx-auto max-w-lg space-y-4 px-4 py-10">
@@ -50,6 +58,7 @@ export default async function PaymentPage({ params }: PageProps<"/payment/[id]">
           <CardDescription>
             {PAYMENT_PURPOSE_LABELS[payment.purpose]}
             {payment.subscription ? ` — ${payment.subscription.plan.name}` : ""}
+            {payment.order ? ` — سفارش ${toPersianDigits(payment.order.code)}` : ""}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">

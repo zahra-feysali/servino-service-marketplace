@@ -8,12 +8,27 @@ import { ORDER_STATUS_META } from "@/features/orders/labels";
 import type { getOrderDetail } from "@/features/orders/service";
 import { DURATION_UNIT_LABELS } from "@/features/requests/labels";
 import { formatDate, formatDateTime, formatPrice, toPersianDigits } from "@/lib/utils";
+import { OrderPaymentCard } from "@/features/finance/components/order-payment-card";
 import { OrderActions } from "./order-actions";
 
 type Order = NonNullable<Awaited<ReturnType<typeof getOrderDetail>>>;
 
 /** Order page body shared by customer and provider dashboards. */
-export function OrderDetail({ order, viewerRole, reviewSlot }: { order: Order; viewerRole: AppRole; reviewSlot?: React.ReactNode }) {
+export function OrderDetail({
+  order,
+  viewerRole,
+  reviewSlot,
+  walletBalance,
+  headerActions,
+}: {
+  order: Order;
+  viewerRole: AppRole;
+  reviewSlot?: React.ReactNode;
+  /** Customer wallet balance (to offer wallet payment). */
+  walletBalance?: number;
+  /** Extra buttons in the page header (e.g. open chat). */
+  headerActions?: React.ReactNode;
+}) {
   const meta = ORDER_STATUS_META[order.status];
   const providerParty = { title: "متخصص", name: order.provider.displayName, phone: order.provider.user.phone };
   const customerParty = { title: "مشتری", name: order.customer.fullName, phone: order.customer.phone };
@@ -26,7 +41,12 @@ export function OrderDetail({ order, viewerRole, reviewSlot }: { order: Order; v
       <PageHeader
         title={`سفارش ${toPersianDigits(order.code)} — ${order.service.name}`}
         description={`ثبت‌شده در ${formatDateTime(order.createdAt)}`}
-        actions={<Badge variant={meta.variant}>{meta.label}</Badge>}
+        actions={
+          <>
+            {headerActions}
+            <Badge variant={meta.variant}>{meta.label}</Badge>
+          </>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -76,6 +96,17 @@ export function OrderDetail({ order, viewerRole, reviewSlot }: { order: Order; v
               ) : null}
             </CardContent>
           </Card>
+
+          <OrderPaymentCard
+            orderId={order.id}
+            orderStatus={order.status}
+            price={order.price}
+            paymentStatus={order.paymentStatus}
+            paidAt={order.paidAt}
+            settlement={order.settlement}
+            viewerRole={viewerRole}
+            walletBalance={walletBalance}
+          />
 
           <Card>
             <CardHeader>

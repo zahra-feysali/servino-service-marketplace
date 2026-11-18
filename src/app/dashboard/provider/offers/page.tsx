@@ -27,7 +27,7 @@ export default async function ProviderOffersPage() {
       {offers.length === 0 ? (
         <EmptyState icon={Send} title="هنوز پیشنهادی ارسال نکرده‌اید" />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-2xl border bg-card shadow-soft">
           <Table>
             <TableHeader>
               <TableRow>

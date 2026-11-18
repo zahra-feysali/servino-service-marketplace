@@ -30,7 +30,7 @@ export async function NotificationList({ userId }: { userId: string }) {
       {items.length === 0 ? (
         <EmptyState icon={BellOff} title="اعلانی ندارید" />
       ) : (
-        <ul className="divide-y rounded-xl border bg-card">
+        <ul className="divide-y rounded-2xl border bg-card shadow-soft">
           {items.map((n) => (
             <li key={n.id} className={cn("flex flex-wrap items-start justify-between gap-3 p-4", !n.readAt && "bg-secondary/40")}>
               <div className="min-w-0 space-y-1">

@@ -54,7 +54,7 @@ export function TicketList({
       {tickets.length === 0 ? (
         <EmptyState icon={LifeBuoy} title="تیکتی وجود ندارد" />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-2xl border bg-card shadow-soft">
           <Table>
             <TableHeader>
               <TableRow>

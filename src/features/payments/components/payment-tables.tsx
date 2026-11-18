@@ -22,7 +22,7 @@ export function PaymentsTable({ payments, linkToGateway }: { payments: PaymentRo
   if (payments.length === 0) return <EmptyState title="پرداختی ثبت نشده است" />;
   const showUser = payments.some((p) => p.user);
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="rounded-2xl border bg-card shadow-soft">
       <Table>
         <TableHeader>
           <TableRow>
@@ -89,7 +89,7 @@ export function WalletTransactionsTable({ transactions }: { transactions: TxRow[
   if (transactions.length === 0) return <EmptyState title="تراکنشی ثبت نشده است" />;
   const showOwner = transactions.some((t) => t.owner);
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="rounded-2xl border bg-card shadow-soft">
       <Table>
         <TableHeader>
           <TableRow>

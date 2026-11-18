@@ -22,7 +22,7 @@ export async function DashboardShell({ user, children }: { user: CurrentUser; ch
     <SidebarProvider>
       <AppSidebar role={user.role} unreadCount={unread} />
       <SidebarInset id="main">
-        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background/90 px-4 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-card/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/70 sm:px-6">
           <div className="flex items-center gap-2">
             <SidebarTrigger aria-label="باز و بسته کردن منو" />
             <Separator orientation="vertical" className="h-5" />
@@ -43,7 +43,7 @@ export async function DashboardShell({ user, children }: { user: CurrentUser; ch
             <UserMenu name={user.fullName} role={user.role} />
           </div>
         </header>
-        <div className="flex-1 space-y-6 p-4 sm:p-6">{children}</div>
+        <div className="mx-auto w-full max-w-7xl min-w-0 flex-1 space-y-6 p-4 sm:p-6 lg:p-8">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

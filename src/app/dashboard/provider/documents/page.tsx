@@ -66,7 +66,7 @@ export default async function ProviderDocumentsPage() {
       {p.documents.length === 0 ? (
         <EmptyState icon={FileText} title="مدرکی بارگذاری نشده است" description="برای ارسال پروفایل جهت تأیید، حداقل یک مدرک لازم است." />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-2xl border bg-card shadow-soft">
           <Table>
             <TableHeader>
               <TableRow>

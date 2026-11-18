@@ -47,7 +47,7 @@ export default async function ProviderRequestsPage({ searchParams }: PageProps<"
           }
         />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-2xl border bg-card shadow-soft">
           <Table>
             <TableHeader>
               <TableRow>

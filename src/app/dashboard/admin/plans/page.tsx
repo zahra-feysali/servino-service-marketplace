@@ -123,7 +123,7 @@ export default async function AdminPlansPage({ searchParams }: PageProps<"/dashb
         {subs.items.length === 0 ? (
           <EmptyState title="اشتراکی یافت نشد" />
         ) : (
-          <div className="rounded-xl border bg-card">
+          <div className="rounded-2xl border bg-card shadow-soft">
             <Table>
               <TableHeader>
                 <TableRow>

@@ -44,7 +44,7 @@ export default async function AdminFeaturedPage() {
       {items.length === 0 ? (
         <EmptyState icon={Sparkles} title="متخصص ویژه‌ای تعریف نشده است" />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-2xl border bg-card shadow-soft">
           <Table>
             <TableHeader>
               <TableRow>

@@ -63,7 +63,7 @@ export default async function CustomerRequestsPage({ searchParams }: PageProps<"
           }
         />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-2xl border bg-card shadow-soft">
           <Table>
             <TableHeader>
               <TableRow>

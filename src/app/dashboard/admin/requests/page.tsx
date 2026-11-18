@@ -64,7 +64,7 @@ async function RequestsView({ sp }: { sp: Record<string, string | string[] | und
       {requests.items.length === 0 ? (
         <EmptyState icon={ClipboardList} title="درخواستی یافت نشد" />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-2xl border bg-card shadow-soft">
           <Table>
             <TableHeader>
               <TableRow>
@@ -128,7 +128,7 @@ async function OffersView({ status, sp }: { status?: (typeof OFFER_STATUSES)[num
       {offers.items.length === 0 ? (
         <EmptyState title="پیشنهادی یافت نشد" />
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="rounded-2xl border bg-card shadow-soft">
           <Table>
             <TableHeader>
               <TableRow>

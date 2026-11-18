@@ -28,7 +28,7 @@ export function UserSearch({ basePath, q, hidden }: { basePath: string; q?: stri
 export function UsersTable({ users, kind }: { users: Users; kind: "customer" | "provider" }) {
   if (users.length === 0) return <EmptyState icon={Users} title="کاربری یافت نشد" />;
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="rounded-2xl border bg-card shadow-soft">
       <Table>
         <TableHeader>
           <TableRow>

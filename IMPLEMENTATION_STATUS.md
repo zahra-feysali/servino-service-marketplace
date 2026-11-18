@@ -1,6 +1,31 @@
 # Implementation Status
 
-_Last updated: 2026-11-16 — end of **Phase 4 (UI/UX, testing, finalization)**. Final report: [FINAL_REPORT.md](FINAL_REPORT.md)._
+_Last updated: 2026-11-18 — **Expansion 2 in progress** (see the next section). Phases 1–4 below are complete.
+Final report: [FINAL_REPORT.md](FINAL_REPORT.md)._
+
+## Expansion 2 (started 2026-11-18)
+Status legend: Not Started · In Progress · Implemented · Tested (automated tests pass) · Verified (also checked
+manually in the browser) · Blocked.
+
+**Baseline (start of work):** branch `main` = `origin/main` at `78ce8fb`, clean working tree; PostgreSQL 18.7 running
+locally; 165/165 tests passing; all 4 original phases complete.
+
+| # | Feature | Status | Notes |
+|---|---|---|---|
+| 1 | Design system & global UI refresh (palette, tokens, components) | Not Started | |
+| 2 | Customer wallet, order payment (wallet / simulated gateway), commission, escrow & release, admin finance | Not Started | |
+| 3 | Profile pictures for all users | Not Started | |
+| 4 | Multi-file upload fix (all upload forms) | Not Started | |
+| 5 | Jalali (Persian) calendar: pickers, filters, display, conversion tests | Not Started | |
+| 6 | Header account menu (avatar, name, role) | Not Started | |
+| 7 | Customer ↔ provider chat (text, images, files, read state, unread counts, notifications) | Not Started | |
+| 8 | About us & Contact us (contact form stored, admin inbox) | Not Started | |
+| 9 | Blog (public list/detail/categories/related, admin CRUD, drafts, cover, SEO, seed articles) | Not Started | |
+| 10 | Home page hero & sections, footer redesign | Not Started | |
+| 11 | Featured plans self-service (admin plans, provider purchase via wallet/gateway, auto expiry, renewal) | Not Started | |
+| 12 | Provider dashboard redesign (services & areas) | Not Started | |
+| 13 | City management (admin CRUD, deactivate, safe delete) | Not Started | |
+| 14 | Integrity review, responsive checks (mobile/tablet/desktop) | Not Started | |
 
 ## Phases
 | Phase | Status |

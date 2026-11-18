@@ -43,7 +43,7 @@ export default async function ProviderEarningsPage() {
         {e.recent.length === 0 ? (
           <EmptyState title="هنوز سفارش تکمیل‌شده‌ای ندارید" />
         ) : (
-          <div className="rounded-xl border bg-card">
+          <div className="rounded-2xl border bg-card shadow-soft">
             <Table>
               <TableHeader>
                 <TableRow>

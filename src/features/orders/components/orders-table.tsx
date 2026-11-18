@@ -15,7 +15,7 @@ export function OrdersTable({ orders, basePath, counterpart }: { orders: Orders;
     return <EmptyState icon={PackageOpen} title="سفارشی ندارید" description="پس از انتخاب یک پیشنهاد، سفارش اینجا نمایش داده می‌شود." />;
   }
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="rounded-2xl border bg-card shadow-soft">
       <Table>
         <TableHeader>
           <TableRow>

@@ -1,6 +1,7 @@
 import {
   BadgeCheck,
   BadgeDollarSign,
+  Banknote,
   Bell,
   BarChart3,
   ClipboardList,
@@ -36,7 +37,7 @@ import {
 } from "lucide-react";
 import type { AppRole } from "@/features/auth/rbac";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon; badge?: "unread" | "messages" };
+export type NavItem = { href: string; label: string; icon: LucideIcon; badge?: "unread" | "messages" | "withdrawals" };
 export type NavGroup = { label: string; items: NavItem[] };
 
 /**
@@ -94,6 +95,7 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
         { href: "/dashboard/provider/featured", label: "نمایش ویژه", icon: Sparkles },
         { href: "/dashboard/provider/wallet", label: "کیف پول و پرداخت‌ها", icon: Wallet },
         { href: "/dashboard/provider/earnings", label: "درآمد", icon: BadgeDollarSign },
+        { href: "/dashboard/provider/withdrawals", label: "برداشت و تسویه", icon: Banknote },
       ],
     },
     {
@@ -133,6 +135,7 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
       label: "مالی",
       items: [
         { href: "/dashboard/admin/finance", label: "مالی و کمیسیون", icon: Landmark },
+        { href: "/dashboard/admin/withdrawals", label: "درخواست‌های برداشت", icon: Banknote, badge: "withdrawals" },
         { href: "/dashboard/admin/plans", label: "پلن‌ها و اشتراک‌ها", icon: BadgeCheck },
         { href: "/dashboard/admin/featured-plans", label: "پلن‌های ویژه", icon: Gem },
         { href: "/dashboard/admin/payments", label: "پرداخت‌ها و تراکنش‌ها", icon: Receipt },

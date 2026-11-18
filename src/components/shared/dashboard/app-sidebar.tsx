@@ -22,7 +22,7 @@ import { Logo } from "@/components/shared/logo";
 import { DASHBOARD_NAV } from "@/features/dashboard/nav";
 import { dashboardPathForRole, type AppRole } from "@/features/auth/rbac";
 
-export function AppSidebar({ role, badges }: { role: AppRole; badges: { unread: number; messages: number } }) {
+export function AppSidebar({ role, badges }: { role: AppRole; badges: { unread: number; messages: number; withdrawals: number } }) {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
   const home = dashboardPathForRole(role);

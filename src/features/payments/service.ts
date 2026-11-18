@@ -129,6 +129,7 @@ export async function getWalletOverview(userId: string) {
     where: { userId },
     select: {
       balance: true,
+      reservedBalance: true,
       transactions: {
         orderBy: { createdAt: "desc" },
         take: 100,
@@ -142,7 +143,7 @@ export async function getWalletOverview(userId: string) {
     take: 100,
     select: { id: true, code: true, amount: true, purpose: true, status: true, gateway: true, trackingCode: true, createdAt: true },
   });
-  return { balance: wallet?.balance ?? 0, transactions: wallet?.transactions ?? [], payments };
+  return { balance: wallet?.balance ?? 0, reservedBalance: wallet?.reservedBalance ?? 0, transactions: wallet?.transactions ?? [], payments };
 }
 
 // ── Admin ────────────────────────────────────────────────────────────────────

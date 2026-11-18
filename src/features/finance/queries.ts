@@ -11,7 +11,7 @@ const dateWhere = (field: string, r: Range) =>
 
 /** Platform finance overview for the admin (all simulated money). */
 export async function getFinanceSummary(range: Range = {}) {
-  const [orderPayments, held, released, refunded, subscription, featured, topups, rate] = await Promise.all([
+  const [orderPayments, held, released, refunded, subscription, featured, topups, rate, payouts, reserved] = await Promise.all([
     prisma.payment.aggregate({ where: { purpose: "ORDER", status: "SUCCEEDED", ...dateWhere("paidAt", range) }, _sum: { amount: true }, _count: true }),
     prisma.orderSettlement.aggregate({ where: { status: "HELD", ...dateWhere("heldAt", range) }, _sum: { grossAmount: true, commissionAmount: true, providerAmount: true }, _count: true }),
     prisma.orderSettlement.aggregate({ where: { status: "RELEASED", ...dateWhere("releasedAt", range) }, _sum: { grossAmount: true, commissionAmount: true, providerAmount: true }, _count: true }),
@@ -20,6 +20,9 @@ export async function getFinanceSummary(range: Range = {}) {
     prisma.payment.aggregate({ where: { purpose: "FEATURED_PLACEMENT", status: "SUCCEEDED", ...dateWhere("paidAt", range) }, _sum: { amount: true } }),
     prisma.payment.aggregate({ where: { purpose: "WALLET_TOPUP", status: "SUCCEEDED", ...dateWhere("paidAt", range) }, _sum: { amount: true } }),
     getCommissionRateBps(),
+    // Provider payouts (manual bank transfers recorded by admins) — money leaving provider wallets, not revenue.
+    prisma.withdrawalRequest.aggregate({ where: { status: "PAID", ...dateWhere("paidAt", range) }, _sum: { amount: true }, _count: true }),
+    prisma.wallet.aggregate({ _sum: { reservedBalance: true } }),
   ]);
   const commissionEarned = released._sum.commissionAmount ?? 0;
   const subscriptionRevenue = subscription._sum.amount ?? 0;
@@ -41,6 +44,9 @@ export async function getFinanceSummary(range: Range = {}) {
     featuredRevenue,
     topUpsTotal: topups._sum.amount ?? 0,
     platformRevenue: commissionEarned + subscriptionRevenue + featuredRevenue,
+    payoutsTotal: payouts._sum.amount ?? 0,
+    payoutsCount: payouts._count,
+    withdrawalsReserved: reserved._sum.reservedBalance ?? 0,
   };
 }
 

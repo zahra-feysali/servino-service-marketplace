@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BadgeDollarSign, Banknote, FlaskConical, HandCoins, Hourglass, Landmark, Percent, RotateCcw } from "lucide-react";
+import { ArrowUpFromLine, BadgeDollarSign, Banknote, FlaskConical, HandCoins, Hourglass, Landmark, Percent, RotateCcw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +55,8 @@ export default async function AdminFinancePage({ searchParams }: PageProps<"/das
         <StatCard label="بازپرداخت‌ها (لغو)" value={formatPrice(s.refundedTotal)} icon={RotateCcw} tone="rose" hint={`${toPersianDigits(s.refundedCount)} سفارش`} />
         <StatCard label="درآمد اشتراک" value={formatPrice(s.subscriptionRevenue)} icon={BadgeDollarSign} />
         <StatCard label="درآمد نمایش ویژه" value={formatPrice(s.featuredRevenue)} icon={BadgeDollarSign} tone="amber" />
+        <StatCard label="برداشت‌های پرداخت‌شده متخصصان" value={formatPrice(s.payoutsTotal)} icon={ArrowUpFromLine} hint={`${toPersianDigits(s.payoutsCount)} انتقال دستی — درآمد سایت نیست`} />
+        <StatCard label="رزرو برای درخواست‌های برداشت" value={formatPrice(s.withdrawalsReserved)} icon={Hourglass} tone="violet" hint="وضعیت فعلی، مستقل از بازه تاریخ" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -87,6 +89,13 @@ export default async function AdminFinancePage({ searchParams }: PageProps<"/das
               <li>نرخ کمیسیون همان لحظه ثبت و سهم سایت و سهم متخصص محاسبه می‌شود.</li>
               <li>پس از تأیید تکمیل سفارش توسط مشتری (یا مدیر در اختلاف)، سهم متخصص به کیف پول او اضافه می‌شود.</li>
               <li>در صورت لغو سفارش، کل مبلغ به کیف پول مشتری بازگردانده می‌شود.</li>
+              <li>
+                متخصص می‌تواند موجودی کیف پول را با{" "}
+                <Link href="/dashboard/admin/withdrawals" className="text-primary hover:underline">
+                  درخواست برداشت
+                </Link>{" "}
+                دریافت کند؛ مدیر انتقال بانکی را دستی انجام می‌دهد و سپس ثبت می‌کند.
+              </li>
             </ol>
             <p className="mt-2">
               تاریخچه تمام تراکنش‌ها در{" "}

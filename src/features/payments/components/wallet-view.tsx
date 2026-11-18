@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowDownLeft, ArrowUpRight, FlaskConical, Wallet } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -29,7 +30,12 @@ export function WalletView({ overview: w, role }: { overview: Overview; role: "C
         }
       />
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="موجودی فعلی" value={formatPrice(w.balance)} icon={Wallet} />
+        <StatCard
+          label="موجودی فعلی"
+          value={formatPrice(w.balance)}
+          icon={Wallet}
+          hint={w.reservedBalance > 0 ? `رزرو برداشت: ${formatPrice(w.reservedBalance)} — قابل استفاده: ${formatPrice(w.balance - w.reservedBalance)}` : undefined}
+        />
         <StatCard label="واریزها (۱۰۰ تراکنش اخیر)" value={formatPrice(credits)} icon={ArrowDownLeft} tone="green" />
         <StatCard label="برداشت‌ها (۱۰۰ تراکنش اخیر)" value={formatPrice(debits)} icon={ArrowUpRight} tone="rose" />
       </div>
@@ -62,7 +68,16 @@ export function WalletView({ overview: w, role }: { overview: Overview; role: "C
               {role === "CUSTOMER" ? (
                 <p>با موجودی کیف پول می‌توانید هزینه سفارش‌ها را پرداخت کنید. مبلغ تا تأیید تکمیل کار نزد سایت می‌ماند و در صورت لغو سفارش به کیف پول شما برمی‌گردد.</p>
               ) : (
-                <p>پس از تأیید تکمیل هر سفارش توسط مشتری، سهم شما (پس از کسر کمیسیون سایت) به این کیف پول اضافه می‌شود.</p>
+                <>
+                  <p>پس از تأیید تکمیل هر سفارش توسط مشتری، سهم شما (پس از کسر کمیسیون سایت) به این کیف پول اضافه می‌شود.</p>
+                  <p>
+                    برای انتقال موجودی به حساب بانکی، از بخش{" "}
+                    <Link href="/dashboard/provider/withdrawals" className="text-primary hover:underline">
+                      برداشت و تسویه
+                    </Link>{" "}
+                    درخواست ثبت کنید؛ واریز به‌صورت دستی توسط مدیریت انجام می‌شود.
+                  </p>
+                </>
               )}
             </div>
           </CardContent>

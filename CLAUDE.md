@@ -86,6 +86,23 @@ Key domain modules (Phase 3):
   app/api/provider/files              POST provider document/portfolio upload (multipart)
   app/api/provider-files/[kind]/[id]  GET document (owner/admin) or portfolio image (public if provider APPROVED)
   app/(public)/payment/[id]           simulated payment gateway page (clearly labelled)
+Key domain modules (Expansion 2):
+  features/finance/       rules.ts (pure: computeSplit, canPayOrder, bps), wallet.ts (creditWallet/debitWallet — the ONLY
+                          balance mutators), service.ts (applyOrderPayment, payOrderWithWallet, startOrderGatewayPayment,
+                          applySettlementForOrderStatus), queries.ts (admin finance, provider earnings), actions.ts
+  features/payments/      service.settlePayment = gateway-agnostic idempotent settlement (subscription, top-up, order, featured)
+  features/chat/          rules.ts (pure), service.ts (participants only), components/ (ChatThread polling via TanStack Query)
+  features/avatars/       rules.ts (avatarSrc, canViewAvatar), service.ts; api/avatars (POST own), api/avatars/[userId] (GET)
+  features/blog/          markup.ts (safe lightweight markup → data → React text), service/queries/actions, admin-handler.ts
+  features/contact/       schemas, service, actions (rate limited + honeypot)
+  features/featured/      purchase-rules.ts, purchase-service.ts (buy plan, activateFeaturedPurchase), purchase-actions.ts
+  features/locations/     queries.ts (all cities), service.ts (CRUD, deactivate, safe delete), actions.ts
+  features/home/          queries.ts (real public stats, category images)
+  lib/jalali.ts           Jalali ⇄ ISO (jalaali-js), Tehran day boundaries; components/shared/jalali-date-picker.tsx,
+                          date-range-filter.tsx
+  lib/uploads.ts          readValidatedFile (size + magic bytes); lib/upload-client.ts (XHR upload with progress)
+  components/shared/      multi-file-input.tsx (MultiFileInput, mergeFiles, FileChip), user-avatar.tsx, account-menu.tsx,
+                          upload-progress.tsx
 src/generated/prisma/   Prisma client output (gitignored, created by `prisma generate`/postinstall)
 tests/unit, tests/integration
 ```
@@ -151,14 +168,29 @@ tests/unit, tests/integration
   settles it exactly once together with its side effects (subscription activation / wallet credit).
 - Wallet: balance changes only inside a transaction holding `lockWallet(tx, userId)`; every change writes a
   WalletTransaction with `balanceAfter`; balance can never go negative (`walletBalanceAfterDebit`).
-- Earnings = value of COMPLETED orders (customers pay providers for the service directly; the platform earns from
-  subscriptions). The `ORDER_EARNING` wallet reason is intentionally unused.
+- Order payments (Expansion 2): the customer pays the order price (wallet or simulated gateway) before work can start
+  (IN_PROGRESS/PROVIDER_COMPLETED/COMPLETED require `paymentStatus = PAID`). Each paid order has exactly one
+  `OrderSettlement` (unique orderId/paymentId) with the commission rate frozen at payment time (`finance.commissionBps`
+  site setting, default 1000 = 10 %). COMPLETED → guarded HELD→RELEASED + provider wallet credit (ORDER_EARNING);
+  CANCELLED → guarded HELD→REFUNDED + full refund to the customer wallet. A duplicate/stale payment for an already paid
+  order is credited back to the payer's wallet. Never move money outside creditWallet/debitWallet.
+- Provider earnings = released settlements (provider share). Platform revenue = subscriptions + featured purchases +
+  released commission.
+- Chat: one Conversation per (request, provider), only after an offer exists; only the two participants can read/send/
+  download (others get 404). Providers see a masked customer name until selected. Sending closes when the offer is not
+  PENDING/ACCEPTED or the request/order is cancelled. Rate limited per user.
+- Avatars: approved providers' pictures are public; customer pictures only for themselves, admins and counterparts with
+  a live offer. Never send storage keys to the client (use `avatarSrc`).
+- Featured plans: purchases create an inactive FeaturedProvider (source PURCHASE); activation happens once (paidAt) and
+  stacks after the latest running placement; expiry is time-based (`isFeaturedLive`).
+- Locations: deactivate instead of delete when used; provider area/service saves keep links to inactive items.
+- Dates: stored as UTC; displayed/entered in Jalali (Asia/Tehran); filters use Tehran day boundaries (`tehranDateRange`).
 - Subscriptions: new purchases stack after the latest active one; `expireDueSubscriptions()` marks overdue ACTIVE ones
   EXPIRED (called from provider pages and the admin plans page); quotas are still enforced in SQL at use time.
 - Featured placement is independent of plans; provider listing order is decided only by `orderProviders` on the server.
 - Public pages never expose customer full names (reviews use `maskName`) nor provider contact data.
-- The init migration `prisma/migrations/20261115000000_init` was generated offline with
-  `prisma migrate diff --from-empty`. It has **not yet been applied to a real database** — see IMPLEMENTATION_STATUS.md.
+- All migrations are applied to the local PostgreSQL 18 database (verified 2026-11-16 and during Expansion 2).
+- Prisma 7: `prisma migrate dev` does not run `generate`; run `npx prisma generate` and restart `npm run dev` after schema changes.
 
 ## 7. Commands
 ```bash
@@ -175,12 +207,13 @@ npm run db:deploy           # prisma migrate deploy (production)
 ```
 
 ## 8. Development phases & workflow
-Current state: **All four phases complete** (see IMPLEMENTATION_STATUS.md and FINAL_REPORT.md). Further work only on
-explicit user request; keep every rule in this file.
+Current state: **All four phases and Expansion 2 complete** (see IMPLEMENTATION_STATUS.md and FINAL_REPORT.md). Further
+work only on explicit user request; keep every rule in this file.
 Forms convention: simple forms use `ServerForm` + FormData Server Actions (server-side Zod validation, field errors via
 `FormFieldError`); complex interactive forms (dynamic request form, form builder) use React Hook Form + shared Zod.
-Migrations: `20261115000000_init`, `20261115100000_payment_gateway_wallet`, `20261116000000_user_password_changed_at`
-(all generated offline with `prisma migrate diff`, not yet applied to a database).
+Migrations: `20261115000000_init`, `20261115100000_payment_gateway_wallet`, `20261116000000_user_password_changed_at`,
+`20261118085453_finance_order_payments`, `20261118091859_user_avatar`, `20261118094228_chat`,
+`20261118095615_contact_and_blog`, `20261118101538_featured_plans` (all additive; applied locally).
 Lists: paginate with `src/lib/pagination.ts` (`parsePage`, `pageArgs`, `toPaginated`) + `<PaginationNav>`; never load unbounded lists.
 Phases: 1 Foundation → 2 Core marketplace logic → 3 Dashboards & business features → 4 UI/UX, testing, finalization.
 - Implement **only the phase the user explicitly requests**; at the end of each phase: review, fix, run lint /

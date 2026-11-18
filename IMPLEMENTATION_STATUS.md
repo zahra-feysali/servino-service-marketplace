@@ -1,6 +1,6 @@
 # Implementation Status
 
-_Last updated: 2026-11-18 — **Expansion 2 in progress** (see the next section). Phases 1–4 below are complete.
+_Last updated: 2026-11-18 — **Expansion 2 complete** (see the next section). Phases 1–4 below are complete.
 Final report: [FINAL_REPORT.md](FINAL_REPORT.md)._
 
 ## Expansion 2 (started 2026-11-18)
@@ -12,20 +12,28 @@ locally; 165/165 tests passing; all 4 original phases complete.
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| 1 | Design system & global UI refresh (palette, tokens, components) | In Progress | Tokens (`globals.css`), Card/Table/PageHeader/StatCard/EmptyState, dashboard shell committed (`bdf2b3c`). Page-level redesign continues with later items. |
-| 2 | Customer wallet, order payment (wallet / simulated gateway), commission, escrow & release, admin finance | Tested | Migration `20261118085453_finance_order_payments` (applied). `features/finance/*`, `payments/service.settlePayment` (idempotent, gateway-agnostic), customer wallet page, `/dashboard/admin/finance`. Tests: `tests/unit/finance-jalali.test.ts`, `tests/integration/finance.int.test.ts` (8 DB tests: top-up, wallet/gateway pay, frozen commission, release, refund, concurrency, stale callback). Refunds go to the customer wallet (no real card refunds — gateway is simulated). |
-| 3 | Profile pictures for all users | Not Started | |
-| 4 | Multi-file upload fix (all upload forms) | Not Started | |
-| 5 | Jalali (Persian) calendar: pickers, filters, display, conversion tests | Tested | `lib/jalali.ts` (jalaali-js 2.0.1), `JalaliDatePicker`, `DateRangeFilter` (admin requests/orders/payments/finance; Tehran day boundaries). All date inputs replaced; DB stays Gregorian. Unit tests incl. 5-year day-by-day cross-check with Intl. |
-| 6 | Header account menu (avatar, name, role) | Not Started | |
-| 7 | Customer ↔ provider chat (text, images, files, read state, unread counts, notifications) | Not Started | |
-| 8 | About us & Contact us (contact form stored, admin inbox) | Not Started | |
-| 9 | Blog (public list/detail/categories/related, admin CRUD, drafts, cover, SEO, seed articles) | Not Started | |
-| 10 | Home page hero & sections, footer redesign | Not Started | |
-| 11 | Featured plans self-service (admin plans, provider purchase via wallet/gateway, auto expiry, renewal) | Not Started | |
-| 12 | Provider dashboard redesign (services & areas) | Not Started | |
-| 13 | City management (admin CRUD, deactivate, safe delete) | Not Started | |
-| 14 | Integrity review, responsive checks (mobile/tablet/desktop) | Not Started | |
+| 1 | Design system & global UI refresh | Verified | Tokens in `globals.css`, Card/Table/PageHeader/StatCard/EmptyState/dashboard shell (`bdf2b3c`); dashboard `min-w-0` fix. Checked in the browser at 375 / 768 / 1280 px. |
+| 2 | Wallet, order payment, commission, escrow, refunds, admin finance | Tested | Migration `20261118085453_finance_order_payments`. `features/finance/*`, idempotent `settlePayment`. 8 PostgreSQL tests (top-up, wallet + gateway pay, frozen commission, release on completion, refund on cancel/dispute, concurrent pay, stale callback, ledger = balance) + unit tests. Admin finance and wallet pages opened in the browser; a full pay-by-UI run was **not** done manually. |
+| 3 | Profile pictures | Verified | Migration `20261118091859_user_avatar`; `/api/avatars`. Upload/replace/delete + visibility tested (PostgreSQL); upload checked in the browser (header updates). |
+| 4 | Multi-file upload fix | Verified | Root cause fixed (live FileList read after reset). `MultiFileInput` in request form, provider documents/portfolio, blog cover; chat composer. Multi-select, add-more, previews and type rejection checked in the browser; server storage of all files tested (PostgreSQL). |
+| 5 | Jalali calendar | Tested | `lib/jalali.ts`, picker, admin date-range filters; unit tests incl. 5-year day-by-day cross-check with Intl. Jalali display seen across pages. |
+| 6 | Header account menu | Verified | `AccountMenu` (avatar, name, role, links, logout); opened on mobile (375 px) and desktop. |
+| 7 | Customer ↔ provider chat | Verified | Migration `20261118094228_chat`. Text/files, read ticks, unread badges, notifications (deduplicated), polling, read-only when the offer is withdrawn; 4 PostgreSQL + unit tests; sent and received a message in the browser. Providers see a masked customer name before selection; per-user rate limits. |
+| 8 | About & Contact | Verified | Migration `20261118095615_contact_and_blog`. Contact form validated and saved through the real UI; admin inbox with read/archive. |
+| 9 | Blog | Verified (public) / Tested (admin) | Public list, categories, article, related posts and SEO metadata checked in the browser; admin CRUD/publish/cover covered by PostgreSQL tests and pages opened (create flow not clicked through manually). 6 seeded articles. |
+| 10 | Home hero & sections, footer | Verified | Hero image, real stats (zero values hidden), category images, steps, featured, latest posts, CTA; new footer. |
+| 11 | Featured plans self-service | Tested | Migration `20261118101538_featured_plans`. Wallet/gateway purchase, activation once, stacking, failure, expiry, safe plan delete — 5 PostgreSQL + unit tests; provider and admin pages opened in the browser. |
+| 12 | Provider dashboard (services & areas) | Verified | Grouped tiles, live counts, select/clear all, search; saves keep inactive items. |
+| 13 | City management | Tested | `/dashboard/admin/cities`; CRUD, deactivate without data loss, safe delete — 3 PostgreSQL tests; page checked at all widths. |
+| 14 | Integrity review & responsive checks | Verified | Independent read-only security review: no high-severity issue; 4 findings fixed (`f1e8aba`). No horizontal overflow on public, customer, provider and admin pages at 375 / 768 / 1280 px (one tablet overflow found and fixed). `shadcn` moved to devDependencies (`npm audit --omit=dev`: 0). |
+
+**Checks (final run):** lint PASSED · typecheck PASSED · tests PASSED (see FINAL_REPORT.md for counts) · build PASSED ·
+`prisma validate` PASSED · `prisma migrate status` up to date. Manual browser checks are listed per row above and are separate
+from automated tests.
+
+**Known limitations:** payments are simulated (no real gateway, refunds go to the wallet); chat uses polling (4 s), not
+websockets; rate limits are in-memory per process; pre-selection chat cannot technically stop users from exchanging
+phone numbers in free text; avatars are cropped client-side (no server-side image re-encoding).
 
 ## Phases
 | Phase | Status |

@@ -35,6 +35,26 @@ orders. Administrators control users, catalog, requests, orders, subscriptions, 
 - **Simulated payments:** `/payment/<id>` is a clearly labelled test gateway — choose *successful* or *failed*; the
   server records the result. No card data is collected and no real money moves.
 
+## Expansion 2 features
+- **Finance & escrow:** customer wallet (top-up, history), order payment by wallet or the simulated gateway; the
+  commission rate (admin setting, default 10 %) is frozen per order at payment time; the provider share is held until the
+  customer confirms completion, then credited to the provider wallet; cancellation refunds the full amount to the customer
+  wallet. Repeated gateway callbacks are idempotent; a stale duplicate payment is credited back. Admin panel
+  `/dashboard/admin/finance`.
+- **Profile pictures** for every user (upload/change/delete, default initials avatar) shown in the account menu,
+  dashboards, provider cards/profile, offers, orders, chat and reviews. Customer pictures are never public.
+- **Account menu** in the header (avatar, name, role, dashboard/profile/messages/wallet/settings/logout), mobile and desktop.
+- **Customer ↔ provider chat** per request + provider once an offer exists: text, images and PDFs, read ticks, unread
+  badges, notifications, polling every 4 s (`/dashboard/{customer,provider}/messages`).
+- **Jalali calendar** everywhere: date picker, Persian date display (Asia/Tehran) and admin date-range filters.
+- **Multi-file upload** fix and reusable picker (multiple selection, add more later, previews, remove, validation, progress).
+- **Blog** (`/blog`, categories, related posts, SEO fields, admin CRUD, drafts, cover upload) with 6 seeded Persian articles.
+- **About** (`/about`) and **Contact** (`/contact`, stored in DB, admin inbox `/dashboard/admin/contact`).
+- **Featured plans:** admins define plans; providers buy them by wallet or gateway (`/dashboard/provider/featured`);
+  automatic activation, renewal stacking and expiry.
+- **City management** (`/dashboard/admin/cities`): add/edit/deactivate/safe-delete provinces and cities without data loss.
+- Redesigned design tokens, home page (hero image, stats, categories with images, latest posts) and footer.
+
 ## Technology stack
 - **Next.js 16** (App Router, Server Components, Server Actions, Route Handlers), **React 19**, **TypeScript** (strict)
 - **Tailwind CSS 4**, **shadcn/ui** (Radix UI, RTL enabled), **Lucide** icons, Sonner toasts
@@ -107,8 +127,9 @@ npm run build && npm start   # production
 ```bash
 npm run lint
 npm run typecheck
-npm test             # unit tests; DB integration tests (auth + full marketplace workflow incl.
-                     # concurrent offer selection) run only when DATABASE_URL is reachable and migrated
+npm test             # unit tests + PostgreSQL integration tests (auth, marketplace workflow, finance/escrow,
+                     # chat, avatars, uploads, blog/contact, featured plans, cities); integration tests are
+                     # skipped automatically when DATABASE_URL is not reachable
 npm run build
 ```
 
@@ -132,13 +153,19 @@ Never run the seed against production (it refuses to run with `NODE_ENV=producti
 
 ## Payments
 This version has **no real payment gateway**. All payments are simulated, stored in the database with
-`isSimulated = true` / gateway `SIMULATED`, and clearly labeled in the UI (implemented in Phase 3).
+`isSimulated = true` / gateway `SIMULATED` (or `WALLET`), and clearly labeled in the UI. Wallet balances are test
+balances, not real money. Settlement goes through one gateway-agnostic, idempotent function
+(`settlePayment` in `src/features/payments/service.ts`), so a real gateway's verified callback can reuse it later.
+Refunds of cancelled orders are credited to the customer's wallet (no card refunds exist in this version).
 
 ## Production deployment notes
 - Run `npm run db:deploy` (prisma migrate deploy), then `npm run build && npm start` behind HTTPS.
 - Set a strong `AUTH_SECRET`, the public `NEXTAUTH_URL`, and a persistent, backed-up `UPLOAD_DIR`.
 - The reverse proxy should set `X-Real-IP` (used for rate limiting) and limit request bodies (e.g. 30 MB).
-- Login/registration rate limits are in-memory per process; with several instances use sticky sessions or a shared store.
+- Login/registration, contact-form and chat rate limits are in-memory per process; with several instances use sticky
+  sessions or a shared store.
+- After changing `prisma/schema.prisma` run `npx prisma generate` (Prisma 7 `migrate dev` does not generate) and restart
+  `npm run dev`, otherwise the dev server keeps the old Prisma client.
 - Simulated payments are disabled in production unless `ALLOW_SIMULATED_PAYMENTS=true` (e.g. for a demo).
 
 ## Project documentation

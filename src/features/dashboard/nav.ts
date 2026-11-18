@@ -15,6 +15,7 @@ import {
   LifeBuoy,
   Mail,
   MapPin,
+  MapPinned,
   Megaphone,
   Newspaper,
   MessageSquareText,
@@ -117,6 +118,7 @@ export const DASHBOARD_NAV: Record<AppRole, NavGroup[]> = {
       label: "بازار",
       items: [
         { href: "/dashboard/admin/catalog", label: "خدمات و فرم‌ها", icon: FolderTree },
+        { href: "/dashboard/admin/cities", label: "شهرها و مناطق", icon: MapPinned },
         { href: "/dashboard/admin/requests", label: "درخواست‌ها و پیشنهادها", icon: ClipboardList },
         { href: "/dashboard/admin/orders", label: "سفارش‌ها", icon: PackageCheck },
         { href: "/dashboard/admin/reviews", label: "نظرات", icon: MessageSquareText },

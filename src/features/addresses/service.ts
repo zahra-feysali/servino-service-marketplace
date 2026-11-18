@@ -14,7 +14,7 @@ export async function listAddresses(userId: string) {
 }
 
 async function assertCity(cityId: string) {
-  const ok = await prisma.city.count({ where: { id: cityId, isActive: true } });
+  const ok = await prisma.city.count({ where: { id: cityId, isActive: true, province: { isActive: true } } });
   if (!ok) throw new AppError("شهر انتخاب‌شده معتبر نیست.", "VALIDATION", { cityId: ["شهر انتخاب‌شده معتبر نیست."] });
 }
 

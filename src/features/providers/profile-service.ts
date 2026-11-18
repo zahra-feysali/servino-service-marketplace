@@ -45,8 +45,10 @@ export async function setProviderServices(userId: string, serviceIds: string[]) 
   const profile = await getProviderProfileByUserId(userId);
   const valid = await prisma.service.findMany({ where: { id: { in: unique }, isActive: true }, select: { id: true } });
   if (valid.length !== unique.length) throw new AppError("برخی خدمات انتخاب‌شده معتبر یا فعال نیستند.", "VALIDATION");
+  // Links to services that are currently inactive are kept (not shown in the form), so re-activating
+  // a service restores them instead of silently losing the provider's choice.
   await prisma.$transaction([
-    prisma.providerService.deleteMany({ where: { providerId: profile.id, serviceId: { notIn: unique } } }),
+    prisma.providerService.deleteMany({ where: { providerId: profile.id, serviceId: { notIn: unique }, service: { isActive: true } } }),
     prisma.providerService.createMany({ data: unique.map((serviceId) => ({ providerId: profile.id, serviceId })), skipDuplicates: true }),
   ]);
 }
@@ -56,10 +58,14 @@ export async function setProviderAreas(userId: string, cityIds: string[]) {
   const unique = [...new Set(cityIds)];
   if (unique.length > MAX_SERVICE_AREAS) throw new AppError(`حداکثر ${MAX_SERVICE_AREAS} شهر قابل انتخاب است.`, "VALIDATION");
   const profile = await getProviderProfileByUserId(userId);
-  const valid = await prisma.city.findMany({ where: { id: { in: unique }, isActive: true }, select: { id: true } });
+  const valid = await prisma.city.findMany({ where: { id: { in: unique }, isActive: true, province: { isActive: true } }, select: { id: true } });
   if (valid.length !== unique.length) throw new AppError("برخی شهرهای انتخاب‌شده معتبر نیستند.", "VALIDATION");
+  // Areas in deactivated cities/provinces are kept (hidden from the form) so nothing is lost if the
+  // admin re-activates them; only areas in currently active cities are replaced.
   await prisma.$transaction([
-    prisma.serviceArea.deleteMany({ where: { providerId: profile.id, cityId: { notIn: unique } } }),
+    prisma.serviceArea.deleteMany({
+      where: { providerId: profile.id, cityId: { notIn: unique }, city: { isActive: true, province: { isActive: true } } },
+    }),
     prisma.serviceArea.createMany({ data: unique.map((cityId) => ({ providerId: profile.id, cityId })), skipDuplicates: true }),
   ]);
 }

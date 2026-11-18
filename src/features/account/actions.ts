@@ -11,6 +11,7 @@ import {
   type UpdateProfileInput,
 } from "@/features/auth/schemas";
 import { changePassword, updateProfile } from "./service";
+import { removeAvatar } from "@/features/avatars/service";
 
 /** Users can only edit their own account — the target id always comes from the session. */
 export async function updateProfileAction(input: UpdateProfileInput): Promise<ActionResult> {
@@ -37,6 +38,18 @@ export async function changePasswordAction(input: ChangePasswordInput): Promise<
     }
     await changePassword(user.id, parsed.data.currentPassword, parsed.data.newPassword);
     return ok(undefined, "رمز عبور با موفقیت تغییر کرد. لطفاً دوباره وارد شوید.");
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/** Removes the signed-in user's own profile picture (the default avatar is shown afterwards). */
+export async function removeAvatarAction(): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    await removeAvatar(user.id);
+    revalidatePath("/", "layout");
+    return ok(undefined, "تصویر پروفایل حذف شد.");
   } catch (error) {
     return toActionError(error);
   }

@@ -70,7 +70,9 @@ export async function getCustomerRequestDetail(customerId: string, requestId: st
           provider: {
             select: {
               id: true,
+              userId: true,
               displayName: true,
+              user: { select: { avatarUpdatedAt: true } },
               ratingAverage: true,
               ratingCount: true,
               completedOrdersCount: true,

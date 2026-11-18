@@ -99,7 +99,7 @@ export async function adminListReviews(status: ReviewStatus | undefined, page = 
       ...pageArgs(page),
       select: {
         id: true, rating: true, comment: true, status: true, createdAt: true,
-        customer: { select: { fullName: true } },
+        customer: { select: { id: true, fullName: true, avatarUpdatedAt: true } },
         provider: { select: { displayName: true } },
         order: { select: { id: true, code: true, service: { select: { name: true } } } },
       },

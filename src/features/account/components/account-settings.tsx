@@ -6,6 +6,7 @@ import type { CurrentUser } from "@/lib/authz";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { ChangePasswordForm } from "./change-password-form";
 import { ProfileForm } from "./profile-form";
+import { AvatarUploader } from "@/features/avatars/components/avatar-uploader";
 
 /** Shared account-settings page body for every role. Always operates on the signed-in user. */
 export async function AccountSettings({ user }: { user: CurrentUser }) {
@@ -14,6 +15,16 @@ export async function AccountSettings({ user }: { user: CurrentUser }) {
   return (
     <>
       <PageHeader title="تنظیمات حساب" description="اطلاعات شخصی و رمز عبور خود را مدیریت کنید." />
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base">تصویر پروفایل</CardTitle>
+          <CardDescription>این تصویر در منوی حساب، پیام‌ها و سفارش‌ها (و برای متخصصان در پروفایل عمومی) نمایش داده می‌شود.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AvatarUploader name={account.fullName} src={user.avatarUrl} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

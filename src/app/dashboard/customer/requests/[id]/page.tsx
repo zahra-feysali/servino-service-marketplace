@@ -16,6 +16,8 @@ import { DURATION_UNIT_LABELS, OFFER_STATUS_META, REQUEST_STATUS_META, effective
 import { getCustomerRequestDetail } from "@/features/requests/queries";
 import { isUuid } from "@/lib/db-locks";
 import { requireRolePage } from "@/lib/authz";
+import { UserAvatar } from "@/components/shared/user-avatar";
+import { avatarSrc } from "@/features/avatars/rules";
 import { cn, formatDate, formatDateTime, formatPrice, toPersianDigits } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "جزئیات درخواست" };
@@ -112,7 +114,9 @@ export default async function CustomerRequestDetailPage({ params, searchParams }
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div>
+                    <div className="flex min-w-0 items-start gap-3">
+                    <UserAvatar name={o.provider.displayName} src={avatarSrc(o.provider.userId, o.provider.user.avatarUpdatedAt)} size="md" />
+                    <div className="min-w-0">
                       <p className="font-semibold">{o.provider.displayName}</p>
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Star className="size-3.5 fill-warning text-warning" aria-hidden />
@@ -122,6 +126,7 @@ export default async function CustomerRequestDetailPage({ params, searchParams }
                         {" · "}
                         {toPersianDigits(o.provider.completedOrdersCount)} سفارش موفق · {toPersianDigits(o.provider.yearsOfExperience)} سال سابقه
                       </p>
+                    </div>
                     </div>
                     <Badge variant={OFFER_STATUS_META[o.status].variant}>{OFFER_STATUS_META[o.status].label}</Badge>
                   </div>

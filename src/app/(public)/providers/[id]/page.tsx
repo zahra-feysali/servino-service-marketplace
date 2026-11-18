@@ -9,6 +9,8 @@ import { getPublicProvider } from "@/features/providers/public-queries";
 import { ReviewList, Stars } from "@/features/reviews/components/review-list";
 import { isUuid } from "@/lib/db-locks";
 import { maskName, toPersianDigits } from "@/lib/utils";
+import { UserAvatar } from "@/components/shared/user-avatar";
+import { avatarSrc } from "@/features/avatars/rules";
 
 type Props = PageProps<"/providers/[id]">;
 
@@ -28,7 +30,7 @@ export default async function ProviderProfilePage({ params }: Props) {
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-10">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <span className="flex size-20 shrink-0 items-center justify-center rounded-full bg-secondary text-3xl font-bold text-primary">{p.displayName.slice(0, 1)}</span>
+        <UserAvatar name={p.displayName} src={avatarSrc(p.userId, p.user.avatarUpdatedAt)} size="xl" className="size-20 shrink-0 text-3xl" />
         <div className="space-y-1">
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             {p.displayName}

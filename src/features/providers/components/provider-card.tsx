@@ -3,9 +3,13 @@ import { BadgeCheck, MapPin, Sparkles, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { toPersianDigits } from "@/lib/utils";
+import { UserAvatar } from "@/components/shared/user-avatar";
+import { avatarSrc } from "@/features/avatars/rules";
 
 export type PublicProviderCard = {
   id: string;
+  userId: string;
+  user: { avatarUpdatedAt: Date | null };
   displayName: string;
   bio: string | null;
   yearsOfExperience: number;
@@ -24,7 +28,7 @@ export function ProviderCard({ p }: { p: PublicProviderCard }) {
         <CardContent className="space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3">
-              <span className="flex size-11 items-center justify-center rounded-full bg-secondary text-lg font-bold text-primary">{p.displayName.slice(0, 1)}</span>
+              <UserAvatar name={p.displayName} src={avatarSrc(p.userId, p.user.avatarUpdatedAt)} size="md" className="size-12" />
               <div>
                 <h3 className="flex items-center gap-1 font-semibold group-hover:text-primary">
                   {p.displayName}

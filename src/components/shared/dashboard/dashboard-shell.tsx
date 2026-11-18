@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/shared/dashboard/app-sidebar";
-import { UserMenu } from "@/components/shared/dashboard/user-menu";
+import { AccountMenu } from "@/components/shared/account-menu";
 import { ROLE_LABELS, dashboardPathForRole } from "@/features/auth/rbac";
 import { countUnread } from "@/features/notifications/service";
 import type { CurrentUser } from "@/lib/authz";
@@ -40,7 +40,7 @@ export async function DashboardShell({ user, children }: { user: CurrentUser; ch
                 ) : null}
               </Link>
             </Button>
-            <UserMenu name={user.fullName} role={user.role} />
+            <AccountMenu name={user.fullName} role={user.role} avatarUrl={user.avatarUrl} />
           </div>
         </header>
         <div className="mx-auto w-full max-w-7xl min-w-0 flex-1 space-y-6 p-4 sm:p-6 lg:p-8">{children}</div>

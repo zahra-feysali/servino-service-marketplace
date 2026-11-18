@@ -1,4 +1,4 @@
-import { CalendarClock, MapPin, Phone, Star, User } from "lucide-react";
+import { CalendarClock, MapPin, Phone, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -10,6 +10,8 @@ import { DURATION_UNIT_LABELS } from "@/features/requests/labels";
 import { formatDate, formatDateTime, formatPrice, toPersianDigits } from "@/lib/utils";
 import { OrderPaymentCard } from "@/features/finance/components/order-payment-card";
 import { OrderActions } from "./order-actions";
+import { UserAvatar } from "@/components/shared/user-avatar";
+import { avatarSrc } from "@/features/avatars/rules";
 
 type Order = NonNullable<Awaited<ReturnType<typeof getOrderDetail>>>;
 
@@ -30,8 +32,8 @@ export function OrderDetail({
   headerActions?: React.ReactNode;
 }) {
   const meta = ORDER_STATUS_META[order.status];
-  const providerParty = { title: "متخصص", name: order.provider.displayName, phone: order.provider.user.phone };
-  const customerParty = { title: "مشتری", name: order.customer.fullName, phone: order.customer.phone };
+  const providerParty = { title: "متخصص", name: order.provider.displayName, phone: order.provider.user.phone, avatar: avatarSrc(order.provider.userId, order.provider.user.avatarUpdatedAt) };
+  const customerParty = { title: "مشتری", name: order.customer.fullName, phone: order.customer.phone, avatar: avatarSrc(order.customer.id, order.customer.avatarUpdatedAt) };
   const parties = viewerRole === "ADMIN" ? [customerParty, providerParty] : [viewerRole === "CUSTOMER" ? providerParty : customerParty];
   // Admins always see contact data (support); parties see each other only while the order is not cancelled.
   const showContact = viewerRole === "ADMIN" || order.status !== "CANCELLED";
@@ -129,8 +131,8 @@ export function OrderDetail({
               <CardTitle className="text-base">{counterpart.title}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <p className="flex items-center gap-2 font-medium">
-                <User className="size-4 text-muted-foreground" aria-hidden />
+              <p className="flex items-center gap-3 font-medium">
+                <UserAvatar name={counterpart.name} src={counterpart.avatar} size="md" />
                 {counterpart.name}
               </p>
               {showContact ? (

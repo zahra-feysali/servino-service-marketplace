@@ -4,6 +4,7 @@ import { orderProviders, type Placement } from "@/features/featured/rules";
 
 const publicProviderSelect = {
   id: true,
+  userId: true,
   displayName: true,
   bio: true,
   yearsOfExperience: true,
@@ -12,6 +13,7 @@ const publicProviderSelect = {
   completedOrdersCount: true,
   services: { take: 4, select: { service: { select: { name: true } } } },
   areas: { take: 4, select: { city: { select: { name: true } } } },
+  user: { select: { avatarUpdatedAt: true } },
 } as const;
 
 /** Only APPROVED providers with ACTIVE accounts are ever public. */
@@ -77,6 +79,6 @@ export async function listProviderReviews(providerId: string) {
   return prisma.review.findMany({
     where: { providerId },
     orderBy: { createdAt: "desc" },
-    select: { id: true, rating: true, comment: true, status: true, createdAt: true, customer: { select: { fullName: true } }, order: { select: { id: true, code: true, service: { select: { name: true } } } } },
+    select: { id: true, rating: true, comment: true, status: true, createdAt: true, customer: { select: { id: true, fullName: true, avatarUpdatedAt: true } }, order: { select: { id: true, code: true, service: { select: { name: true } } } } },
   });
 }

@@ -163,8 +163,8 @@ export async function getOrderDetail(
         },
       },
       // Contact details are shared only between the two parties of the order.
-      customer: { select: { fullName: true, phone: true } },
-      provider: { select: { id: true, displayName: true, ratingAverage: true, ratingCount: true, user: { select: { phone: true } } } },
+      customer: { select: { id: true, fullName: true, phone: true, avatarUpdatedAt: true } },
+      provider: { select: { id: true, userId: true, displayName: true, ratingAverage: true, ratingCount: true, user: { select: { phone: true, avatarUpdatedAt: true } } } },
       history: { orderBy: { createdAt: "asc" }, select: { id: true, fromStatus: true, toStatus: true, note: true, createdAt: true } },
       review: { select: { id: true, rating: true, comment: true, createdAt: true, status: true } },
       paymentStatus: true,

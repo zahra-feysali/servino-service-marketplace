@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AuthError, ForbiddenError } from "@/lib/errors";
 import { dashboardPathForRole, hasRole, type AppRole } from "@/features/auth/rbac";
+import { avatarSrc } from "@/features/avatars/rules";
 
 /**
  * Server-side authentication & authorization guards.
@@ -19,6 +20,8 @@ export type CurrentUser = {
   phone: string;
   email: string | null;
   role: AppRole;
+  /** Versioned profile-picture URL, or null for the default avatar. */
+  avatarUrl: string | null;
 };
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
@@ -28,16 +31,20 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, fullName: true, phone: true, email: true, role: true, status: true, passwordChangedAt: true },
+    select: { id: true, fullName: true, phone: true, email: true, role: true, status: true, passwordChangedAt: true, avatarUpdatedAt: true },
   });
   if (!user || user.status !== "ACTIVE") return null;
   // Sessions issued before the latest password change are no longer valid.
   if (user.passwordChangedAt && user.passwordChangedAt.getTime() > (session.user.authTime ?? 0)) return null;
 
-  const { status: _status, passwordChangedAt: _changed, ...safe } = user;
-  void _status;
-  void _changed;
-  return safe;
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    phone: user.phone,
+    email: user.email,
+    role: user.role,
+    avatarUrl: avatarSrc(user.id, user.avatarUpdatedAt),
+  };
 });
 
 // ── Page guards (redirect) ───────────────────────────────────────────────────

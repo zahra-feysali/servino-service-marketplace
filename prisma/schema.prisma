@@ -207,6 +207,10 @@ model User {
   lastLoginAt       DateTime?
   /// Sessions issued before this moment are rejected (set on password change).
   passwordChangedAt DateTime?
+  /// Private storage key of the profile picture (served only via /api/avatars/[userId]).
+  avatarKey         String?    @db.VarChar(80)
+  /// Set whenever the picture changes (cache-busting version); null when there is no picture.
+  avatarUpdatedAt   DateTime?
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 

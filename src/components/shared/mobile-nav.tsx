@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator";
 import { PUBLIC_NAV as LINKS } from "@/components/shared/public-nav";
 
 export function MobileNav({ isAuthenticated }: { isAuthenticated: boolean }) {
@@ -31,15 +30,8 @@ export function MobileNav({ isAuthenticated }: { isAuthenticated: boolean }) {
               </Link>
             </Button>
           ))}
-          <Separator className="my-2" />
-          {isAuthenticated ? (
-            <Button asChild>
-              <Link href="/dashboard" onClick={close}>
-                داشبورد
-              </Link>
-            </Button>
-          ) : (
-            <div className="flex flex-col gap-2">
+          {isAuthenticated ? null : (
+            <div className="mt-2 flex flex-col gap-2 border-t pt-4">
               <Button asChild variant="outline">
                 <Link href="/login" onClick={close}>
                   ورود

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { LayoutDashboard, LogIn, UserPlus } from "lucide-react";
+import { LogIn, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/shared/logo";
 import { MobileNav } from "@/components/shared/mobile-nav";
+import { AccountMenu } from "@/components/shared/account-menu";
 import { PUBLIC_NAV } from "@/components/shared/public-nav";
 import { getCurrentUserSafe } from "@/features/auth/current-user-safe";
 
@@ -24,16 +25,11 @@ export async function SiteHeader() {
           </nav>
         </div>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="flex items-center gap-1 sm:gap-2">
           {user ? (
-            <Button asChild>
-              <Link href="/dashboard">
-                <LayoutDashboard />
-                داشبورد
-              </Link>
-            </Button>
+            <AccountMenu name={user.fullName} role={user.role} avatarUrl={user.avatarUrl} />
           ) : (
-            <>
+            <div className="hidden items-center gap-2 md:flex">
               <Button asChild variant="ghost">
                 <Link href="/login">
                   <LogIn />
@@ -46,11 +42,10 @@ export async function SiteHeader() {
                   ثبت‌نام
                 </Link>
               </Button>
-            </>
+            </div>
           )}
+          <MobileNav isAuthenticated={!!user} />
         </div>
-
-        <MobileNav isAuthenticated={!!user} />
       </div>
     </header>
   );

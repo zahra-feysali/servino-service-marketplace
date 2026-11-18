@@ -1,7 +1,37 @@
 # Implementation Status
 
-_Last updated: 2026-11-18 — **Expansion 2 complete** (see the next section). Phases 1–4 below are complete.
+_Last updated: 2026-11-18 — **Provider withdrawals complete** (next section). Expansion 2 and Phases 1–4 below are complete.
 Final report: [FINAL_REPORT.md](FINAL_REPORT.md)._
+
+## Provider withdrawals & manual payouts (2026-11-18)
+Status legend as below (Not Started · In Progress · Implemented · Tested · Verified · Blocked).
+
+**Baseline:** `main` = `origin/main` at `58d8d3a`, clean tree; PostgreSQL 18.7 running; 240/240 tests passing.
+**Plan:** reserve funds on the wallet (`Wallet.reservedBalance`) instead of debiting at request time; debit once on
+"mark as paid" (ledger row unique per withdrawal); spending (`debitWallet`) limited to the available balance; guarded
+status transitions under wallet + withdrawal row locks; audit events; notifications; provider and admin pages.
+
+| # | Item | Status | Notes |
+|---|---|---|---|
+| W1 | Schema + migration `20261119000000_provider_withdrawals` | Tested | Additive: `ProviderBankAccount`, `WithdrawalRequest`, `WithdrawalEvent`, enums, `Wallet.reservedBalance`, `WalletTransaction.withdrawalId @unique`, reason `WITHDRAWAL`, notification `WITHDRAWAL_UPDATE`; DB CHECKs `reservedBalance >= 0`, `balance >= reservedBalance`, `amount > 0`. Applied with `migrate deploy`; status up to date. |
+| W2 | Reservation-aware wallet (`features/finance/wallet.ts`) | Tested | `debitWallet` uses the available balance; `reserveWalletFunds`, `releaseWalletReservation`, `payOutReservedFunds`. |
+| W3 | Rules (Sheba checksum/normalize/mask, amount, transitions) | Tested | `features/withdrawals/rules.ts`, 14 unit tests. |
+| W4 | Service (request, cancel, approve, reject, mark paid, min setting) | Tested | `features/withdrawals/service.ts`; 11 PostgreSQL tests (reservation, ownership/roles, suspended provider, reject/approve/pay/cancel rules, single debit under retries, rollback, idempotency key, concurrent requests, concurrent spending, reconciliation, admin search) + 1 finance regression test (released earnings → payout, revenue unchanged). |
+| W5 | Provider page `/dashboard/provider/withdrawals` | Verified | Balances, bank account form, request + review dialog, history with cancel. Checked in the browser (see below). |
+| W6 | Admin pages `/dashboard/admin/withdrawals[/id]` | Verified | Summary, ledger reconciliation check, search/status/date filters, detail with full Sheba, audit trail, approve / record payment (confirmation required) / reject (reason required), min-withdrawal setting. |
+| W7 | Existing features updated | Verified | Wallet page shows reserved/available + link; admin finance shows payouts and reservations (not revenue); nav items + pending badge for admins; ledger label for `WITHDRAWAL`. |
+
+**Manual browser checks (performed):** provider — balances, wrong-checksum Sheba rejected, valid Sheba saved/normalized
+(bank detected), amount above available blocked, review dialog, two requests created and reserved, a third cancelled
+(funds released), history and notifications; admin — list/summary/ledger check, search by request number, approve,
+record payment (confirmation enforced, reference stored, one ledger debit), reject with required reason (funds released),
+finance page (revenue unchanged, payout listed), wallet transaction view. No horizontal overflow at 375 / 768 / 1280 px on
+the provider page and both admin pages. The provider's earnings came from a real order (#78) run through the service
+functions by a script (request → offer → selection → simulated top-up → wallet payment → completion), **not** clicked
+through in the UI; commission stayed 10 % (240,000 of 2,400,000).
+
+**Checks:** lint PASSED · typecheck PASSED · tests PASSED 266/266 (201 unit, 65 PostgreSQL) · build PASSED (no warnings) ·
+`prisma validate` PASSED · `migrate status` up to date.
 
 ## Expansion 2 (started 2026-11-18)
 Status legend: Not Started · In Progress · Implemented · Tested (automated tests pass) · Verified (also checked

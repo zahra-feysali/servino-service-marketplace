@@ -87,7 +87,7 @@ Key domain modules (Phase 3):
   app/api/provider-files/[kind]/[id]  GET document (owner/admin) or portfolio image (public if provider APPROVED)
   app/(public)/payment/[id]           simulated payment gateway page (clearly labelled)
 Key domain modules (Expansion 2):
-  features/finance/       rules.ts (pure: computeSplit, canPayOrder, bps), wallet.ts (creditWallet/debitWallet — the ONLY
+  features/finance/       rules.ts (pure: computeSplit, canPayOrder, bps), wallet.ts (credit/debit + reserve/release/payOut — the ONLY
                           balance mutators), service.ts (applyOrderPayment, payOrderWithWallet, startOrderGatewayPayment,
                           applySettlementForOrderStatus), queries.ts (admin finance, provider earnings), actions.ts
   features/payments/      service.settlePayment = gateway-agnostic idempotent settlement (subscription, top-up, order, featured)
@@ -98,6 +98,9 @@ Key domain modules (Expansion 2):
   features/featured/      purchase-rules.ts, purchase-service.ts (buy plan, activateFeaturedPurchase), purchase-actions.ts
   features/locations/     queries.ts (all cities), service.ts (CRUD, deactivate, safe delete), actions.ts
   features/home/          queries.ts (real public stats, category images)
+  features/withdrawals/   rules.ts (pure: Sheba checksum/normalize/mask, amount schema, status transitions), service.ts
+                          (request, cancel, approve, reject, markPaid — wallet lock → withdrawal lock → guarded update),
+                          queries.ts (balances, admin list/detail, ledger reconciliation), actions.ts, components/
   lib/jalali.ts           Jalali ⇄ ISO (jalaali-js), Tehran day boundaries; components/shared/jalali-date-picker.tsx,
                           date-range-filter.tsx
   lib/uploads.ts          readValidatedFile (size + magic bytes); lib/upload-client.ts (XHR upload with progress)
@@ -173,9 +176,15 @@ tests/unit, tests/integration
   `OrderSettlement` (unique orderId/paymentId) with the commission rate frozen at payment time (`finance.commissionBps`
   site setting, default 1000 = 10 %). COMPLETED → guarded HELD→RELEASED + provider wallet credit (ORDER_EARNING);
   CANCELLED → guarded HELD→REFUNDED + full refund to the customer wallet. A duplicate/stale payment for an already paid
-  order is credited back to the payer's wallet. Never move money outside creditWallet/debitWallet.
+  order is credited back to the payer's wallet. Never move money outside `features/finance/wallet.ts`.
 - Provider earnings = released settlements (provider share). Platform revenue = subscriptions + featured purchases +
   released commission.
+- Withdrawals: a request only reserves (`Wallet.reservedBalance`); available = balance − reserved; `debitWallet` spends
+  only the available balance. Reject/cancel releases; "mark paid" (admin records a MANUAL bank transfer — no bank API)
+  debits balance + reservation once (ledger row unique per `withdrawalId`). DB CHECKs keep 0 ≤ reserved ≤ balance.
+  Transitions: PENDING→APPROVED|REJECTED|CANCELLED (cancel = provider, pending only), APPROVED→PAID|REJECTED. Bank details
+  are snapshotted per request and masked outside owner/admin views. Payouts are never platform revenue.
+  `features/finance/wallet.ts` holds the ONLY balance/reservation mutators.
 - Chat: one Conversation per (request, provider), only after an offer exists; only the two participants can read/send/
   download (others get 404). Providers see a masked customer name until selected. Sending closes when the offer is not
   PENDING/ACCEPTED or the request/order is cancelled. Rate limited per user.
@@ -207,13 +216,15 @@ npm run db:deploy           # prisma migrate deploy (production)
 ```
 
 ## 8. Development phases & workflow
-Current state: **All four phases and Expansion 2 complete** (see IMPLEMENTATION_STATUS.md and FINAL_REPORT.md). Further
+Current state: **All four phases, Expansion 2 and provider withdrawals complete** (see IMPLEMENTATION_STATUS.md and FINAL_REPORT.md). Further
 work only on explicit user request; keep every rule in this file.
 Forms convention: simple forms use `ServerForm` + FormData Server Actions (server-side Zod validation, field errors via
 `FormFieldError`); complex interactive forms (dynamic request form, form builder) use React Hook Form + shared Zod.
 Migrations: `20261115000000_init`, `20261115100000_payment_gateway_wallet`, `20261116000000_user_password_changed_at`,
 `20261118085453_finance_order_payments`, `20261118091859_user_avatar`, `20261118094228_chat`,
-`20261118095615_contact_and_blog`, `20261118101538_featured_plans` (all additive; applied locally).
+`20261118095615_contact_and_blog`, `20261118101538_featured_plans`, `20261119000000_provider_withdrawals`
+(all additive; applied locally). `prisma migrate dev` is interactive-only here: generate SQL with
+`prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`, then `prisma migrate deploy`.
 Lists: paginate with `src/lib/pagination.ts` (`parsePage`, `pageArgs`, `toPaginated`) + `<PaginationNav>`; never load unbounded lists.
 Phases: 1 Foundation → 2 Core marketplace logic → 3 Dashboards & business features → 4 UI/UX, testing, finalization.
 - Implement **only the phase the user explicitly requests**; at the end of each phase: review, fix, run lint /

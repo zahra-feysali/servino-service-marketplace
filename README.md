@@ -55,6 +55,33 @@ orders. Administrators control users, catalog, requests, orders, subscriptions, 
 - **City management** (`/dashboard/admin/cities`): add/edit/deactivate/safe-delete provinces and cities without data loss.
 - Redesigned design tokens, home page (hero image, stats, categories with images, latest posts) and footer.
 
+## Provider withdrawals (manual payouts)
+Providers can move their released earnings out of the in-app wallet; **the bank transfer itself is done manually by an
+administrator outside the application** — the site has no bank API and never transfers money automatically.
+
+1. **Bank account** (`/dashboard/provider/withdrawals`): the provider registers the account holder name and Sheba (IBAN).
+   The Sheba is normalized (spaces/dashes removed, Persian digits converted, `IR` prefix) and validated with the ISO 13616
+   mod-97 checksum. Full details are shown only to the owner and to admins; lists and notifications show a masked value.
+2. **Request**: the provider enters an amount (positive integer Toman, at most the *available* balance, optional
+   admin-configured minimum) and confirms it in a review dialog. The amount is **reserved** on the wallet; the request
+   keeps a snapshot of the bank details used. A per-form idempotency key prevents double submissions.
+3. **Admin review** (`/dashboard/admin/withdrawals`, filters by status / Jalali date range, search by name, mobile or request
+   number): *approve* (funds stay reserved) → transfer the money in the bank → *record payment* with the transfer tracking
+   code (unique) and an optional note; or *reject* with a mandatory reason (reservation released).
+4. The provider may **cancel** only while the request is still pending.
+
+| Status | Meaning | Funds |
+|---|---|---|
+| `PENDING` — در انتظار بررسی | submitted, waiting for review | reserved |
+| `APPROVED` — تأیید شده / در انتظار پرداخت | approved, waiting for the manual transfer | reserved |
+| `PAID` — پرداخت شده | admin recorded the completed transfer | debited from the wallet once |
+| `REJECTED` — رد شده | rejected with a reason | released |
+| `CANCELLED` — لغو شده | cancelled by the provider before approval | released |
+
+Wallet figures: **balance** (Σ credits − Σ debits), **reserved** (Σ pending + approved requests), **available** = balance −
+reserved (the only part that can be spent or withdrawn). Every transition is audited (`WithdrawalEvent`: actor, time,
+note) and notifies the provider. Payouts are not platform revenue; the admin finance page lists them separately.
+
 ## Technology stack
 - **Next.js 16** (App Router, Server Components, Server Actions, Route Handlers), **React 19**, **TypeScript** (strict)
 - **Tailwind CSS 4**, **shadcn/ui** (Radix UI, RTL enabled), **Lucide** icons, Sonner toasts
@@ -157,6 +184,8 @@ This version has **no real payment gateway**. All payments are simulated, stored
 balances, not real money. Settlement goes through one gateway-agnostic, idempotent function
 (`settlePayment` in `src/features/payments/service.ts`), so a real gateway's verified callback can reuse it later.
 Refunds of cancelled orders are credited to the customer's wallet (no card refunds exist in this version).
+Provider withdrawals are paid by an admin with a **manual bank transfer outside the app**; "record payment" only records
+that transfer and debits the wallet — it does not move money.
 
 ## Production deployment notes
 - Run `npm run db:deploy` (prisma migrate deploy), then `npm run build && npm start` behind HTTPS.

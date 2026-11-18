@@ -151,3 +151,76 @@ rate limits, and a row lock for concurrent avatar uploads (plus a stricter UUID 
 - After pulling: `npm install`, `npm run db:migrate` (or `db:deploy` in production), `npm run db:seed`, then restart
   `npm run dev` (Prisma 7 needs `npx prisma generate` after schema changes).
 - Images in `public/images` are free-license Unsplash photos (sources in `public/images/CREDITS.md`).
+
+---
+
+# Provider withdrawals & manual payouts — Report (2026-11-18)
+
+## Implemented
+- **Provider** (`/dashboard/provider/withdrawals`): total balance, available balance, amount reserved by open requests,
+  total paid out; bank account (holder name + Sheba with checksum validation and normalization); withdrawal request with a
+  review dialog (amount + masked destination) and an idempotency key; history (date, amount, masked Sheba, status,
+  rejection reason, payment date and reference); cancel while pending.
+- **Admin** (`/dashboard/admin/withdrawals`, `/[id]`): status filter, Jalali date range, search by name / display name /
+  mobile / request number; totals; live ledger reconciliation check; detail with full Sheba (admins only), provider
+  status, wallet figures and the audit trail; approve, record payment (transfer reference required + explicit
+  confirmation that the transfer was made outside the app), reject (reason required); configurable minimum withdrawal
+  (`finance.minWithdrawal`, default 0 = none). Sidebar badge with the number of pending requests.
+- **Notifications** to the provider on submission, approval, rejection, payment and cancellation (one per transition).
+- No fees were introduced. No bank API exists: "record payment" only records a transfer an admin made manually.
+
+## Database (migration `20261119000000_provider_withdrawals`, additive)
+New tables `ProviderBankAccount` (one per user), `WithdrawalRequest` (code, amount, status, bank snapshot, admin/actor
+fields, unique `payoutReference`, unique `(userId, clientKey)`), `WithdrawalEvent` (append-only audit). New columns
+`Wallet.reservedBalance` (default 0) and `WalletTransaction.withdrawalId` (unique). New enum values `WITHDRAWAL`
+(ledger reason) and `WITHDRAWAL_UPDATE` (notification). CHECK constraints: `reservedBalance >= 0`,
+`balance >= reservedBalance`, `amount > 0`. Existing rows were verified compatible before applying; nothing was dropped.
+
+## Financial design
+- A request **reserves** the amount (`reservedBalance += amount`); the balance and the ledger are untouched.
+  Available = balance − reserved. Reject/cancel releases the reservation. **Record payment** debits the balance and the
+  reservation together, writing exactly one ledger row (`reason = WITHDRAWAL`, `withdrawalId` unique). So
+  `balance = Σ credits − Σ debits` and `reserved = Σ PENDING + APPROVED amounts` hold at all times (checked by the admin
+  page and by tests). The money is never subtracted twice.
+- `debitWallet` (order payment, subscription, featured purchase) now spends only the available balance, so reserved funds
+  cannot be spent. Commission, escrow, release and refund logic is unchanged.
+- Every operation is one transaction: lock the wallet row, then the withdrawal row (same order everywhere), validate the
+  transition, then a guarded `updateMany(where status = expected)`. Retries and races fail without side effects.
+- Transitions: PENDING → APPROVED | REJECTED | CANCELLED; APPROVED → PAID | REJECTED; PAID/REJECTED/CANCELLED are final.
+  (An approved request can still be rejected, e.g. if the transfer could not be made; never after payment.)
+
+## Security
+Server-side role checks in every action (`requireRole`) plus DB re-checks in the service (active PROVIDER / active ADMIN);
+ownership enforced in the query (another provider's request → "not found"); ids validated with `isUuid`; all inputs
+validated with Zod; amounts, balances, statuses and bank details are never taken from the client; suspended users cannot
+act (session rejected, service re-check). Bank details are masked everywhere except for the owner and admins; no public
+endpoint exposes them; no card PIN/CVV2 or banking credentials are requested. Server Actions rely on the built-in
+Next.js origin check (no new Route Handlers were added).
+
+## Automated tests (final run)
+| Check | Result |
+|---|---|
+| ESLint | PASSED — 0 errors, 0 warnings |
+| TypeScript | PASSED |
+| Vitest | PASSED — **266 / 266** in 28 files (**201 unit**, **65 PostgreSQL integration**), 0 failed, 0 skipped |
+| Build | PASSED — no warnings; 3 new routes |
+| `prisma validate` / `generate` / `migrate status` | PASSED / PASSED / up to date |
+
+New: `tests/unit/withdrawals.test.ts` (14), `tests/integration/withdrawals.int.test.ts` (11), and one regression test in
+`finance.int.test.ts` (released order earnings → withdrawal → payout; commission and platform revenue unchanged).
+
+## Manual browser checks (performed, separate from automated tests)
+Provider: balances; wrong-checksum Sheba rejected; valid Sheba saved and normalized (bank name shown); amount above the
+available balance blocked; review dialog; requests #33 (1,000,000) and #34 (500,000) reserved; #35 cancelled and released;
+history and notifications. Admin: list, totals, ledger check, search by number, approve #33, record payment with reference
+(confirmation enforced) → balance 2,160,000 → 1,160,000 with one ledger row; reject #34 with a required reason → funds
+released; finance page (platform revenue unchanged, payout listed separately); wallet transaction view. No horizontal
+overflow at 375 / 768 / 1280 px on the three new pages. **Not done in the UI:** the regression order (#78) that produced
+the provider's earnings was run through the real service functions by a script, not clicked through; server-side
+over-limit rejection, concurrency and rollback are covered by automated tests only.
+
+## Known limitations
+- Transfers are manual; there is no bank integration or automatic reconciliation with bank statements.
+- The bank-name lookup covers common banks only (unknown codes show "نامشخص"); holder-name/Sheba ownership is not
+  verified against a bank inquiry service.
+- The local development database now contains the demo order #78 and withdrawals #33–#35 created during verification.

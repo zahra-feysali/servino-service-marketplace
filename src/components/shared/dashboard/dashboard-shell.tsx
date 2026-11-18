@@ -22,7 +22,7 @@ export async function DashboardShell({ user, children }: { user: CurrentUser; ch
   return (
     <SidebarProvider>
       <AppSidebar role={user.role} badges={{ unread, messages }} />
-      <SidebarInset id="main">
+      <SidebarInset id="main" className="min-w-0">
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-card/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/70 sm:px-6">
           <div className="flex items-center gap-2">
             <SidebarTrigger aria-label="باز و بسته کردن منو" />
